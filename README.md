@@ -4,8 +4,6 @@
 
 Built with Remotion + Claude Code | React 19 | TypeScript | Whisper AI
 
-![AI Video Studio](assets/landing-hero-es.png)
-
 [English](#english) | [Español](#español)
 
 ---

@@ -1,8 +1,8 @@
-/** Brand identity for @soyenriquerocha */
+/** Brand identity — customize with your own handle and colors */
 export const BRAND = {
-  name: "Editor Pro Max",
-  handle: "@soyenriquerocha",
-  tagline: "AI-Powered Video Editing",
+  name: "AI Video Studio",
+  handle: "@your_handle",
+  tagline: "Create Viral Videos with AI",
   colors: {
     primary: "#8b5cf6",
     secondary: "#6366f1",
@@ -11,7 +11,7 @@ export const BRAND = {
     muted: "#a0a0a0",
   },
   watermark: {
-    text: "@soyenriquerocha",
+    text: "@your_handle",
     opacity: 0.6,
     fontSize: 16,
   },

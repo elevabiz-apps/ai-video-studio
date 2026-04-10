@@ -1,16 +1,16 @@
-Set up Editor Pro Max for first use. Run these steps automatically without asking:
+Set up AI Video Studio for first use. Run these steps automatically without asking:
 
 1. Check if `node_modules/` exists. If not, run `npm install` and wait for it to complete.
 2. Run `npx tsc --noEmit` to verify TypeScript compiles cleanly.
 3. Start Remotion Studio: run `npm run dev` in the background, wait ~5 seconds for it to build, then open `http://localhost:3000` in the browser.
-4. Open the landing page: run `open -a "Google Chrome" landing.html` (macOS) or `xdg-open landing.html` (Linux).
+
 5. Show a welcome message:
 
 ```
-✦ Editor Pro Max — @soyenriquerocha
+✦ AI Video Studio
 
 Remotion Studio is running at http://localhost:3000
-The landing page is also open in your browser.
+
 
 Or tell me what you want to create:
 
@@ -30,7 +30,7 @@ BROWSE FOR REFERENCES
   "Browse TikTok caption trends"
   "Find me reference styles for tech presentations"
 
-SKILLS: 8 specialized AI skills loaded
+SKILLS: 10 specialized AI skills loaded
   Remotion best practices, motion design, award-winning animations,
   animated components, FFmpeg, explainer videos, rendering, web browsing
 
