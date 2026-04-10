@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Editor Pro Max — @soyenriquerocha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --ink:#1a1a1a;
+  --ink-soft:#4a4a4a;
+  --ink-muted:#8a8a8a;
+  --surface:#faf9f7;
+  --surface-alt:#f0eeeb;
+  --orange:#e67e22;
+  --orange-hover:#cf6d17;
+  --orange-subtle:rgba(230,126,34,.08);
+  --purple:#8b5cf6;
+  --radius:12px;
+  --radius-pill:999px;
+}
+html{font-size:16px;-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+body{background:var(--surface);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;overflow-x:hidden;line-height:1.6}
+.container{max-width:960px;margin:0 auto;padding:0 clamp(20px,5vw,40px)}
+@keyframes rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.animate{animation:rise .7s cubic-bezier(.16,1,.3,1) both}
+.d1{animation-delay:.05s}.d2{animation-delay:.12s}.d3{animation-delay:.2s}
+.d4{animation-delay:.28s}.d5{animation-delay:.36s}
+
+/* Language toggle */
+.lang-toggle{display:flex;gap:0;border-radius:var(--radius-pill);overflow:hidden;border:1.5px solid #ddd;width:fit-content}
+.lang-toggle button{
+  background:none;border:none;padding:6px 16px;font-family:'DM Sans',sans-serif;
+  font-size:13px;font-weight:500;cursor:pointer;color:var(--ink-muted);transition:all .2s;
+}
+.lang-toggle button.active{background:var(--ink);color:#fff}
+.lang-es,.lang-en{transition:opacity .3s}
+body.show-en .lang-es{display:none}
+body.show-en .lang-en{display:block}
+body:not(.show-en) .lang-en{display:none}
+body:not(.show-en) .lang-es{display:block}
+
+nav{padding:20px 0;display:flex;align-items:center;justify-content:space-between}
+nav .brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:var(--ink);text-decoration:none;letter-spacing:-.5px}
+nav .right{display:flex;gap:20px;align-items:center}
+nav .right a{font-size:14px;color:var(--ink-muted);text-decoration:none;font-weight:500;transition:color .2s}
+nav .right a:hover{color:var(--ink)}
+nav .right .gh{display:inline-flex;align-items:center;gap:6px}
+nav .right .gh svg{width:16px;height:16px;fill:currentColor}
+
+.hero{padding:clamp(60px,10vh,100px) 0 clamp(50px,8vh,80px);text-align:left}
+.hero .badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--orange-subtle);border:1px solid rgba(230,126,34,.15);
+  border-radius:var(--radius-pill);padding:6px 16px;margin-bottom:clamp(20px,3vh,32px);
+  font-size:13px;font-weight:600;color:var(--orange);letter-spacing:.3px;
+}
+.hero h1{
+  font-family:'Space Grotesk',sans-serif;font-size:clamp(44px,7vw,76px);font-weight:700;
+  line-height:1;letter-spacing:-2.5px;color:var(--ink);margin-bottom:20px;
+}
+.hero h1 span{color:var(--orange)}
+.hero .sub{font-size:clamp(16px,2vw,19px);color:var(--ink-soft);max-width:520px;line-height:1.65;margin-bottom:36px}
+.hero .actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.btn-primary{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--orange);color:#fff;border:none;
+  font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;
+  padding:14px 30px;border-radius:var(--radius-pill);cursor:pointer;
+  text-decoration:none;transition:background .2s,transform .15s;
+}
+.btn-primary:hover{background:var(--orange-hover);transform:translateY(-1px)}
+.btn-ghost{
+  display:inline-flex;align-items:center;
+  background:none;border:1.5px solid #ddd;color:var(--ink-soft);
+  font-family:'DM Sans',sans-serif;font-weight:500;font-size:14px;
+  padding:12px 24px;border-radius:var(--radius-pill);cursor:pointer;
+  text-decoration:none;transition:border-color .2s,color .2s;
+}
+.btn-ghost:hover{border-color:var(--ink-muted);color:var(--ink)}
+.divider{height:1px;background:rgba(0,0,0,.06);margin:0}
+
+.how{padding:clamp(50px,8vh,80px) 0}
+.section-label{
+  font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;
+  color:var(--orange);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;
+}
+.section-title{
+  font-family:'Space Grotesk',sans-serif;font-size:clamp(28px,4vw,40px);
+  font-weight:700;letter-spacing:-1px;color:var(--ink);margin-bottom:clamp(32px,5vh,48px);line-height:1.15;
+}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(20px,3vw,40px)}
+.step .num{
+  font-family:'Space Grotesk',sans-serif;font-size:48px;font-weight:700;
+  color:var(--surface-alt);line-height:1;margin-bottom:12px;-webkit-text-stroke:1.5px #ddd;
+}
+.step h3{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:600;margin-bottom:8px;color:var(--ink)}
+.step p{font-size:14px;color:var(--ink-muted);line-height:1.6}
+
+.features{padding:clamp(50px,8vh,80px) 0}
+.feat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.feat{padding:clamp(24px,3vw,32px);border-radius:var(--radius);background:var(--surface-alt);transition:background .2s}
+.feat:hover{background:#e8e6e2}
+.feat .tag{
+  display:inline-block;font-size:11px;font-weight:600;color:var(--orange);
+  background:var(--orange-subtle);padding:4px 10px;border-radius:var(--radius-pill);
+  margin-bottom:14px;letter-spacing:.5px;text-transform:uppercase;
+}
+.feat h3{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;margin-bottom:6px;color:var(--ink)}
+.feat p{font-size:13px;color:var(--ink-muted);line-height:1.55}
+
+.templates{padding:clamp(50px,8vh,80px) 0}
+.tmpl-grid{display:flex;flex-wrap:wrap;gap:10px}
+.tmpl{
+  padding:10px 18px;border-radius:var(--radius-pill);background:var(--surface-alt);
+  border:1.5px solid transparent;font-family:'Space Grotesk',sans-serif;font-size:14px;
+  font-weight:500;color:var(--ink-soft);cursor:default;transition:border-color .2s,color .2s;
+}
+.tmpl:hover{border-color:var(--orange);color:var(--ink)}
+.tmpl .dim{font-size:11px;color:var(--ink-muted);margin-left:6px;font-weight:400}
+
+.cta-section{padding:clamp(50px,8vh,80px) 0;text-align:center}
+.cta-section h2{font-family:'Space Grotesk',sans-serif;font-size:clamp(28px,4vw,40px);font-weight:700;letter-spacing:-1px;margin-bottom:12px;color:var(--ink)}
+.cta-section p{font-size:16px;color:var(--ink-muted);margin-bottom:32px}
+
+/* ─── ODYSSER BANNER ─── */
+.odysser-banner{
+  border-radius:16px;padding:clamp(32px,4vw,48px);
+  background:linear-gradient(145deg,#0a0a14 0%,#111128 100%);
+  border:1px solid rgba(0,0,255,.12);position:relative;overflow:hidden;
+}
+.odysser-banner::before{
+  content:'';position:absolute;top:-100px;right:-60px;width:350px;height:350px;
+  background:radial-gradient(circle,rgba(0,0,255,.08),transparent 70%);pointer-events:none;
+}
+.odysser-banner .odysser-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.odysser-banner .odysser-logo-img{height:32px;width:auto}
+.odysser-banner .odysser-rec{
+  font-size:10px;font-weight:600;color:#6e7bff;background:rgba(0,0,255,.1);
+  padding:5px 12px;border-radius:var(--radius-pill);letter-spacing:.8px;text-transform:uppercase;
+}
+.odysser-banner h3{
+  font-family:'Space Grotesk',sans-serif;font-size:clamp(22px,3vw,30px);
+  font-weight:700;color:#fff;margin-bottom:10px;letter-spacing:-.5px;line-height:1.2;
+}
+.odysser-banner .odysser-sub{font-size:15px;color:#9ca3bf;line-height:1.65;margin-bottom:24px;max-width:600px}
+.odysser-banner .odysser-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px}
+.odysser-banner .og{
+  padding:14px 16px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.06);
+}
+.odysser-banner .og strong{display:block;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:#e0e0f0;margin-bottom:3px}
+.odysser-banner .og span{font-size:12px;color:#7a7f9e;line-height:1.4}
+.odysser-banner .odysser-actions{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.btn-odysser{
+  display:inline-flex;align-items:center;gap:8px;
+  background:#00f;color:#fff;border:none;
+  font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;
+  padding:13px 26px;border-radius:var(--radius-pill);cursor:pointer;
+  text-decoration:none;transition:transform .15s,box-shadow .2s;
+}
+.btn-odysser:hover{transform:translateY(-1px);box-shadow:0 4px 24px rgba(0,0,255,.3)}
+.odysser-banner .odysser-free{font-size:13px;color:#7a7f9e}
+.odysser-banner .odysser-free strong{color:#6e7bff}
+@media(max-width:700px){.odysser-banner .odysser-grid{grid-template-columns:1fr}}
+
+footer{padding:32px 0;text-align:center;font-size:13px;color:var(--ink-muted)}
+footer a{color:var(--orange);text-decoration:none;font-weight:500}
+footer a:hover{text-decoration:underline}
+
+@media(max-width:700px){
+  .steps{grid-template-columns:1fr}
+  .feat-grid{grid-template-columns:1fr}
+  .hero{text-align:center}
+  .hero .sub{margin-left:auto;margin-right:auto}
+  .hero .actions{justify-content:center}
+  nav .right{gap:12px}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <nav class="animate d1">
+    <a href="#" class="brand">Editor Pro Max</a>
+    <div class="right">
+      <div class="lang-toggle">
+        <button class="active" onclick="setLang('es')">ES</button>
+        <button onclick="setLang('en')">EN</button>
+      </div>
+      <a href="https://instagram.com/soyenriquerocha" target="_blank">@soyenriquerocha</a>
+      <a href="https://github.com/Hainrixz/editor-pro-max" target="_blank" class="gh">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </nav>
+</div>
+
+<!-- ═══════════════════════ SPANISH ═══════════════════════ -->
+
+<div class="lang-es">
+
+<div class="container">
+  <section class="hero">
+    <div class="badge animate d1">por @soyenriquerocha</div>
+    <h1 class="animate d2">Edita videos<br>con <span>IA.</span></h1>
+    <p class="sub animate d3">Describe lo que quieres en lenguaje natural. Claude Code escribe la composicion. Tu obtienes un video profesional.</p>
+    <div class="actions animate d4">
+      <a href="http://localhost:3000" class="btn-primary">Comenzar a Editar</a>
+      <a href="https://github.com/Hainrixz/editor-pro-max" target="_blank" class="btn-ghost">Ver en GitHub</a>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="how animate d5">
+    <div class="section-label">Inicio Rapido</div>
+    <h2 class="section-title">De cero a editando en 4 comandos.</h2>
+    <div style="background:var(--surface-alt);border-radius:var(--radius);padding:clamp(24px,3vw,32px);margin-bottom:40px;font-family:'Space Grotesk',monospace;font-size:14px;color:var(--ink-soft);line-height:2.2">
+      <div><span style="color:var(--ink-muted)">1.</span> <code style="color:var(--ink)">git clone https://github.com/Hainrixz/editor-pro-max.git</code></div>
+      <div><span style="color:var(--ink-muted)">2.</span> <code style="color:var(--ink)">cd editor-pro-max</code></div>
+      <div><span style="color:var(--ink-muted)">3.</span> <code style="color:var(--ink)">claude</code></div>
+      <div><span style="color:var(--ink-muted)">4.</span> <code style="color:var(--orange)">/start</code> <span style="color:var(--ink-muted)">&mdash; instala todo automaticamente</span></div>
+    </div>
+    <div style="display:flex;gap:clamp(16px,3vw,32px);flex-wrap:wrap;margin-bottom:20px">
+      <div style="font-size:13px;color:var(--ink-muted)"><strong style="color:var(--ink)">Requisitos:</strong> Node.js 20+ &middot; Claude Code CLI &middot; macOS / Linux / Windows WSL</div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="how">
+    <div class="section-label">Como funciona</div>
+    <h2 class="section-title">Tres pasos. Sin timeline. Sin interfaz.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">01</div>
+        <h3>Describe</h3>
+        <p>Dile a Claude que video quieres. "Hazme un TikTok anunciando mi nuevo curso" o "agrega subtitulos a mi video."</p>
+      </div>
+      <div class="step">
+        <div class="num">02</div>
+        <h3>Claude escribe</h3>
+        <p>Claude crea una composicion de Remotion usando 25 componentes &mdash; animaciones de texto, fondos, overlays, transiciones y mas.</p>
+      </div>
+      <div class="step">
+        <div class="num">03</div>
+        <h3>Renderiza</h3>
+        <p>Vista previa en Studio, ajusta con feedback, y exporta como MP4 para cualquier plataforma &mdash; TikTok, Instagram, YouTube, Twitter.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="features">
+    <div class="section-label">Capacidades</div>
+    <h2 class="section-title">Todo lo que necesitas para editar.</h2>
+    <div class="feat-grid">
+      <div class="feat">
+        <div class="tag">25 Componentes</div>
+        <h3>Libreria completa</h3>
+        <p>Titulos animados, lower thirds, gradientes, particulas, pantalla dividida, picture-in-picture, transiciones y mas. Todo composable.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">Subtitulos IA</div>
+        <h3>Transcripcion con Whisper</h3>
+        <p>IA local genera subtitulos palabra por palabra de tu video. Estilo TikTok con 5 presets visuales. Sin API keys.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">Cortes Inteligentes</div>
+        <h3>Remocion de silencio</h3>
+        <p>FFmpeg detecta el silencio en tu grabacion. Un componente lo elimina todo &mdash; manteniendo solo los segmentos con voz.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">Multi-Plataforma</div>
+        <h3>Renderiza para cualquier formato</h3>
+        <p>TikTok (1080x1920), YouTube (1920x1080), Instagram, Twitter &mdash; renderiza un video para todas las plataformas con un solo comando.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">Referencias Visuales</div>
+        <h3>Busqueda de estilos</h3>
+        <p>El agente navega la web para buscar referencias visuales, estilos y tendencias. Dile "quiero el estilo de Apple" y lo busca por ti.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">8 Skills de IA</div>
+        <h3>Conocimiento especializado</h3>
+        <p>Motion design, animaciones premiadas, mejores practicas de Remotion, FFmpeg, componentes animados y mas &mdash; todo integrado en el agente.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="how">
+    <div class="section-label">Editar Video Existente</div>
+    <h2 class="section-title">Trae tu video. Claude hace el resto.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">01</div>
+        <h3>Sube tu video</h3>
+        <p>Coloca tu archivo en <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;font-size:13px">public/assets/</code> y dile a Claude que lo edite.</p>
+      </div>
+      <div class="step">
+        <div class="num">02</div>
+        <h3>IA analiza</h3>
+        <p>Whisper transcribe palabra por palabra. FFmpeg detecta silencios. Todo automatico, todo local, sin internet.</p>
+      </div>
+      <div class="step">
+        <div class="num">03</div>
+        <h3>Edicion lista</h3>
+        <p>Subtitulos estilo TikTok, cortes de silencio, titulos, lower thirds, musica de fondo &mdash; todo en tu video editado.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="templates">
+    <div class="section-label">10 Templates</div>
+    <h2 class="section-title">Puntos de partida listos para usar.</h2>
+    <div class="tmpl-grid">
+      <div class="tmpl">TikTok <span class="dim">1080x1920</span></div>
+      <div class="tmpl">Instagram Reel <span class="dim">1080x1920</span></div>
+      <div class="tmpl">YouTube Short <span class="dim">1080x1920</span></div>
+      <div class="tmpl">Presentacion <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Testimonio <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Anuncio <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Antes / Despues <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Talking Head <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Podcast Clip <span class="dim">1080x1920</span></div>
+      <div class="tmpl">Showcase <span class="dim">1920x1080</span></div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="features">
+    <div class="odysser-banner">
+      <div class="odysser-header">
+        <img src="assets/odysser-logo.svg" alt="Odysser" class="odysser-logo-img">
+        <span class="odysser-rec">Recomendado</span>
+      </div>
+      <h3>Quieres ir mas alla? Edita en la nube con Odysser</h3>
+      <p class="odysser-sub">Editor Pro Max es increible para editar localmente &mdash; pero si quieres animaciones instantaneas con IA, musica, B-roll automatico, y cero dependencia de tu hardware, Odysser es la mejor opcion. Sube tu video y en 5 minutos tienes contenido listo para publicar.</p>
+      <div class="odysser-grid">
+        <div class="og">
+          <strong>Animaciones con IA</strong>
+          <span>Motion graphics automaticos que analizan tu contenido y lo animan profesionalmente</span>
+        </div>
+        <div class="og">
+          <strong>Subtitulos + B-roll</strong>
+          <span>Captions contextuales, inserciones de B-roll y split-screen automatico</span>
+        </div>
+        <div class="og">
+          <strong>Musica + Efectos</strong>
+          <span>Libreria integrada de musica, efectos de sonido y transiciones cinematograficas</span>
+        </div>
+      </div>
+      <div class="odysser-actions">
+        <a href="https://odysser.com" target="_blank" class="btn-odysser">Probar Odysser Gratis</a>
+        <span class="odysser-free">Plan gratuito con <strong>10 exports/mes</strong></span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="cta-section">
+    <h2>Listo para editar?</h2>
+    <p>Abre el Studio y comienza a crear.</p>
+    <a href="http://localhost:3000" class="btn-primary">Abrir Editor</a>
+  </section>
+</div>
+
+</div><!-- end lang-es -->
+
+<!-- ═══════════════════════ ENGLISH ═══════════════════════ -->
+
+<div class="lang-en">
+
+<div class="container">
+  <section class="hero">
+    <div class="badge animate d1">by @soyenriquerocha</div>
+    <h1 class="animate d2">Edit videos<br>with <span>AI.</span></h1>
+    <p class="sub animate d3">Describe what you want in plain language. Claude Code writes the Remotion composition. You get a professional video.</p>
+    <div class="actions animate d4">
+      <a href="http://localhost:3000" class="btn-primary">Start Editing</a>
+      <a href="https://github.com/Hainrixz/editor-pro-max" target="_blank" class="btn-ghost">View on GitHub</a>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="how animate d5">
+    <div class="section-label">Quick Start</div>
+    <h2 class="section-title">Zero to editing in 4 commands.</h2>
+    <div style="background:var(--surface-alt);border-radius:var(--radius);padding:clamp(24px,3vw,32px);margin-bottom:40px;font-family:'Space Grotesk',monospace;font-size:14px;color:var(--ink-soft);line-height:2.2">
+      <div><span style="color:var(--ink-muted)">1.</span> <code style="color:var(--ink)">git clone https://github.com/Hainrixz/editor-pro-max.git</code></div>
+      <div><span style="color:var(--ink-muted)">2.</span> <code style="color:var(--ink)">cd editor-pro-max</code></div>
+      <div><span style="color:var(--ink-muted)">3.</span> <code style="color:var(--ink)">claude</code></div>
+      <div><span style="color:var(--ink-muted)">4.</span> <code style="color:var(--orange)">/start</code> <span style="color:var(--ink-muted)">&mdash; installs everything automatically</span></div>
+    </div>
+    <div style="display:flex;gap:clamp(16px,3vw,32px);flex-wrap:wrap;margin-bottom:20px">
+      <div style="font-size:13px;color:var(--ink-muted)"><strong style="color:var(--ink)">Requirements:</strong> Node.js 20+ &middot; Claude Code CLI &middot; macOS / Linux / Windows WSL</div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="how">
+    <div class="section-label">How it works</div>
+    <h2 class="section-title">Three steps. No timeline. No GUI.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">01</div>
+        <h3>Describe</h3>
+        <p>Tell Claude what video you want. "Make me a TikTok announcing my new course" or "add captions to my talking head video."</p>
+      </div>
+      <div class="step">
+        <div class="num">02</div>
+        <h3>Claude writes</h3>
+        <p>Claude creates a Remotion composition using 25 pre-built components &mdash; text animations, backgrounds, overlays, transitions, and more.</p>
+      </div>
+      <div class="step">
+        <div class="num">03</div>
+        <h3>Render</h3>
+        <p>Preview in Studio, tweak with feedback, then export as MP4 for any platform &mdash; TikTok, Instagram, YouTube, Twitter.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="features">
+    <div class="section-label">Capabilities</div>
+    <h2 class="section-title">Everything you need to edit.</h2>
+    <div class="feat-grid">
+      <div class="feat">
+        <div class="tag">25 Components</div>
+        <h3>Full component library</h3>
+        <p>Animated titles, lower thirds, gradients, particles, split screens, picture-in-picture, transitions, and more. All composable.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">AI Captions</div>
+        <h3>Whisper transcription</h3>
+        <p>Local AI generates word-level captions from your video. TikTok-style highlighting with 5 visual presets. No API keys.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">Smart Cuts</div>
+        <h3>Silence removal</h3>
+        <p>FFmpeg detects dead air in your footage. One component removes it all &mdash; keeping only the speech segments with smooth transitions.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">Multi-Platform</div>
+        <h3>Render for any format</h3>
+        <p>TikTok (1080x1920), YouTube (1920x1080), Instagram, Twitter &mdash; batch render one video for every platform in a single command.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">Visual References</div>
+        <h3>Style browsing</h3>
+        <p>The agent browses the web for visual references, styles, and trends. Say "I want the Apple style" and it searches for you.</p>
+      </div>
+      <div class="feat">
+        <div class="tag">8 AI Skills</div>
+        <h3>Specialized knowledge</h3>
+        <p>Motion design, award-winning animations, Remotion best practices, FFmpeg, animated components and more &mdash; all built into the agent.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="how">
+    <div class="section-label">Edit Existing Video</div>
+    <h2 class="section-title">Bring your footage. Claude does the rest.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">01</div>
+        <h3>Upload your video</h3>
+        <p>Place your file in <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;font-size:13px">public/assets/</code> and tell Claude to edit it.</p>
+      </div>
+      <div class="step">
+        <div class="num">02</div>
+        <h3>AI analyzes</h3>
+        <p>Whisper transcribes word-by-word. FFmpeg detects silence. Fully automatic, fully local, no internet needed.</p>
+      </div>
+      <div class="step">
+        <div class="num">03</div>
+        <h3>Edit ready</h3>
+        <p>TikTok-style captions, silence cuts, titles, lower thirds, background music &mdash; all applied to your edited video.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="templates">
+    <div class="section-label">10 Templates</div>
+    <h2 class="section-title">Ready-made starting points.</h2>
+    <div class="tmpl-grid">
+      <div class="tmpl">TikTok <span class="dim">1080x1920</span></div>
+      <div class="tmpl">Instagram Reel <span class="dim">1080x1920</span></div>
+      <div class="tmpl">YouTube Short <span class="dim">1080x1920</span></div>
+      <div class="tmpl">Presentation <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Testimonial <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Announcement <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Before / After <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Talking Head Edit <span class="dim">1920x1080</span></div>
+      <div class="tmpl">Podcast Clip <span class="dim">1080x1920</span></div>
+      <div class="tmpl">Showcase <span class="dim">1920x1080</span></div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="features">
+    <div class="odysser-banner">
+      <div class="odysser-header">
+        <img src="assets/odysser-logo.svg" alt="Odysser" class="odysser-logo-img">
+        <span class="odysser-rec">Recommended</span>
+      </div>
+      <h3>Want to go further? Edit in the cloud with Odysser</h3>
+      <p class="odysser-sub">Editor Pro Max is great for local editing &mdash; but if you want instant AI animations, music, automatic B-roll, and zero hardware dependency, Odysser is the best option. Upload your video and in 5 minutes you have content ready to publish.</p>
+      <div class="odysser-grid">
+        <div class="og">
+          <strong>AI Animations</strong>
+          <span>Automatic motion graphics that analyze your content and animate it professionally</span>
+        </div>
+        <div class="og">
+          <strong>Captions + B-roll</strong>
+          <span>Context-aware captions, B-roll insertions, and automatic split-screen</span>
+        </div>
+        <div class="og">
+          <strong>Music + Effects</strong>
+          <span>Built-in music library, sound effects, and cinematic transitions</span>
+        </div>
+      </div>
+      <div class="odysser-actions">
+        <a href="https://odysser.com" target="_blank" class="btn-odysser">Try Odysser Free</a>
+        <span class="odysser-free">Free plan with <strong>10 exports/month</strong></span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="divider"></div>
+
+<div class="container">
+  <section class="cta-section">
+    <h2>Ready to edit?</h2>
+    <p>Open the Studio and start creating.</p>
+    <a href="http://localhost:3000" class="btn-primary">Open Editor</a>
+  </section>
+</div>
+
+</div><!-- end lang-en -->
+
+<div class="divider"></div>
+
+<footer>
+  <div class="container">
+    Built with Remotion + Claude Code by <a href="https://instagram.com/soyenriquerocha" target="_blank">@soyenriquerocha</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://tododeia.com" target="_blank">tododeia.com</a>
+  </div>
+</footer>
+
+<script>
+function setLang(lang) {
+  const btns = document.querySelectorAll('.lang-toggle button');
+  btns.forEach(b => b.classList.remove('active'));
+  if (lang === 'en') {
+    document.body.classList.add('show-en');
+    btns[1].classList.add('active');
+  } else {
+    document.body.classList.remove('show-en');
+    btns[0].classList.add('active');
+  }
+}
+</script>
+
+</body>
+</html>

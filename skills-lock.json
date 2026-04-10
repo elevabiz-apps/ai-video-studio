@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "skills": {
+    "animated-component-libraries": {
+      "source": "freshtechbro/claudedesignskills",
+      "sourceType": "github",
+      "computedHash": "af53d0b6930732ec4cc187351a53a43cdf25f18560fb82be8e1b07dccaf017e1"
+    },
+    "awwwards-animations": {
+      "source": "devmartinese/awwwards-animations-skill",
+      "sourceType": "github",
+      "computedHash": "03ea7b6b4daf3de348c530ec0670cd63c21bc060591f5ca7f193234008a941b6"
+    },
+    "explainer-video-guide": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "a748607aae40673c875dbaf4b6ae75885d5b063c1d25d872d6a07376c313dab4"
+    },
+    "ffmpeg": {
+      "source": "digitalsamba/claude-code-video-toolkit",
+      "sourceType": "github",
+      "computedHash": "51fa05bc18bb2691e622aefd1d8ec6d4d96a9e9c44cdf599003c9d6003d11a07"
+    },
+    "motion-designer": {
+      "source": "ncklrs/startup-os-skills",
+      "sourceType": "github",
+      "computedHash": "6e97bde63421a9181d68d23690168d51c60894e3713f1e8e6944525f5480d084"
+    },
+    "playwright-mcp": {
+      "source": "darraghh1/my-claude-setup",
+      "sourceType": "github",
+      "computedHash": "afcddc67e43a4946a06f7d3ecfde65137db8c9f8ab8d4f1ee9b60bdcb19ef5bc"
+    },
+    "remotion-best-practices": {
+      "source": "remotion-dev/skills",
+      "sourceType": "github",
+      "computedHash": "2f673b7710813ac07c71c0a54657f740078aec6585f15edf351494499e1f9ac3"
+    },
+    "remotion-render": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "305754fdc357ed2856d08ee2f2c9d9a8d45bcaa2a7aa34f297cf6c2c8d184857"
+    }
+  }
+}
