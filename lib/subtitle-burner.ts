@@ -5,6 +5,7 @@ import os from "os";
 
 const CWD = process.cwd();
 const COMPOSITOR_DIR = path.join(CWD, "node_modules", "@remotion", "compositor-darwin-arm64");
+const FFMPEG_BIN = process.env.FFMPEG_PATH ?? path.join(COMPOSITOR_DIR, "ffmpeg");
 
 /**
  * Burns subtitles into a clip using a Python script (cv2 + PIL).
@@ -30,7 +31,7 @@ export async function burnSubtitles(
   fs.writeFileSync(tmpCaptions, captionsJson, "utf-8");
 
   const script = path.join(CWD, "scripts", "burn-subtitles.py");
-  const ffmpegBin = path.join(COMPOSITOR_DIR, "ffmpeg");
+  const ffmpegBin = FFMPEG_BIN;
 
   await new Promise<void>((resolve) => {
     const proc = spawn(

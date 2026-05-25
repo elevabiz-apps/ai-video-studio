@@ -6,8 +6,9 @@ import type { Project, Clip } from "./db";
 import db from "./db";
 
 const CWD = process.cwd();
+// FFMPEG_PATH env var overrides the bundled macOS binary (used on Railway/Linux)
 const COMPOSITOR_DIR = path.join(CWD, "node_modules", "@remotion", "compositor-darwin-arm64");
-const FFMPEG_BIN = path.join(COMPOSITOR_DIR, "ffmpeg");
+const FFMPEG_BIN = process.env.FFMPEG_PATH ?? path.join(COMPOSITOR_DIR, "ffmpeg");
 const BURN_SCRIPT = path.join(CWD, "scripts", "burn-subtitles.py");
 
 function updateRender(

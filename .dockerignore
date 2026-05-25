@@ -1,0 +1,14 @@
+.git
+.next
+node_modules
+.studio
+studio.db
+public/assets
+public/renders
+whisper.cpp
+.env
+.env.local
+*.mov
+*.mp4
+*.wav
+*.webm

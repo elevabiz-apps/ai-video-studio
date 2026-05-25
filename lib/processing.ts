@@ -8,8 +8,9 @@ import { smartClipVideo } from "./smart-clipper";
 import { burnSubtitles } from "./subtitle-burner";
 
 const CWD = process.cwd();
-
+// FFMPEG_PATH env var overrides the bundled macOS binary (used on Railway/Linux)
 const COMPOSITOR_DIR = path.join(CWD, "node_modules", "@remotion", "compositor-darwin-arm64");
+const FFMPEG_BIN = process.env.FFMPEG_PATH ?? path.join(COMPOSITOR_DIR, "ffmpeg");
 
 function runScript(
   scriptPath: string,
@@ -199,7 +200,7 @@ async function detectFaceCenter(
   videoPath: string
 ): Promise<{ cropX: number; cropW: number } | null> {
   return new Promise((resolve) => {
-    const ffmpegBin = path.join(COMPOSITOR_DIR, "ffmpeg");
+    const ffmpegBin = FFMPEG_BIN;
     const scriptPath = path.join(CWD, "scripts", "detect-face-center.py");
 
     const proc = spawn(
@@ -249,7 +250,7 @@ function reframeToVertical(
     : "crop=trunc(ih*9/16/2)*2:ih:(iw-trunc(ih*9/16/2)*2)/2:0,scale=1080:1920";
 
   return new Promise((resolve, reject) => {
-    const ffmpegBin = path.join(COMPOSITOR_DIR, "ffmpeg");
+    const ffmpegBin = FFMPEG_BIN;
     const proc = spawn(
       ffmpegBin,
       [
@@ -286,7 +287,7 @@ function cutClip(
   endSeconds: number
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const ffmpegBin = path.join(COMPOSITOR_DIR, "ffmpeg");
+    const ffmpegBin = FFMPEG_BIN;
     const proc = spawn(
       ffmpegBin,
       [

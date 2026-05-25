@@ -10,10 +10,15 @@ import re
 import os
 import tempfile
 
-FFMPEG = os.path.join(os.path.dirname(__file__), "../node_modules/@remotion/compositor-darwin-arm64/ffmpeg")
-FFMPEG = os.path.abspath(FFMPEG)
-FFPROBE = FFMPEG.replace("/ffmpeg", "/ffprobe")
-DYLD_ENV = {**os.environ, "DYLD_LIBRARY_PATH": os.path.dirname(FFMPEG)}
+# Use FFMPEG_PATH env var if set (e.g. Railway/Linux: /usr/bin/ffmpeg)
+# Falls back to the Remotion-bundled binary for local macOS dev
+_default_ffmpeg = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../node_modules/@remotion/compositor-darwin-arm64/ffmpeg")
+)
+FFMPEG = os.environ.get("FFMPEG_PATH", _default_ffmpeg)
+FFPROBE = os.environ.get("FFPROBE_PATH", FFMPEG.replace("/ffmpeg", "/ffprobe").replace("ffmpeg", "ffprobe"))
+_compositor_dir = os.path.dirname(FFMPEG)
+DYLD_ENV = {**os.environ, "DYLD_LIBRARY_PATH": _compositor_dir}
 
 def get_duration(input_file):
     result = subprocess.run(

@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Standalone output for Docker/Railway deployment
+  output: "standalone",
   // Exclude heavy native packages from client bundle
   serverExternalPackages: [
     "better-sqlite3",
