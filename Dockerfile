@@ -42,6 +42,8 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     numpy
 
 ENV NODE_ENV=production
+# Bind to all interfaces so Railway's proxy can reach the server
+ENV HOSTNAME=0.0.0.0
 # Tell all scripts to use system ffmpeg instead of the Remotion macOS binary
 ENV FFMPEG_PATH=/usr/bin/ffmpeg
 ENV FFPROBE_PATH=/usr/bin/ffprobe
