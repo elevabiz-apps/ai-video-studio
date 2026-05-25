@@ -4,7 +4,7 @@
  * Usage: npx tsx scripts/analyze-video.ts public/assets/video.mp4
  * Output: public/video-metadata.json
  */
-import {execSync} from "child_process";
+import {spawnSync} from "child_process";
 import {writeFileSync} from "fs";
 import path from "path";
 
@@ -16,9 +16,22 @@ if (!inputPath) {
 
 console.log(`Analyzing: ${inputPath}`);
 
-// Use ffprobe to extract metadata
-const ffprobeCmd = `npx remotion ffprobe -v quiet -print_format json -show_format -show_streams "${inputPath}"`;
-const output = execSync(ffprobeCmd, {encoding: "utf-8"});
+// Use spawnSync (no shell) so DYLD_LIBRARY_PATH reaches the binary on macOS
+const compositorDir = path.join(process.cwd(), "node_modules", "@remotion", "compositor-darwin-arm64");
+const ffprobeBin = path.join(compositorDir, "ffprobe");
+const result = spawnSync(ffprobeBin, [
+  "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", inputPath
+], {
+  encoding: "utf-8",
+  env: { ...process.env, DYLD_LIBRARY_PATH: compositorDir },
+});
+
+if (result.error || result.status !== 0) {
+  console.error("ffprobe failed:", result.stderr || result.error?.message);
+  process.exit(1);
+}
+
+const output = result.stdout;
 const probe = JSON.parse(output);
 
 const videoStream = probe.streams?.find((s: any) => s.codec_type === "video");

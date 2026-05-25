@@ -1,0 +1,53 @@
+export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from "next/server";
+import { projectQueries } from "@/lib/db";
+import { writeFile } from "fs/promises";
+import path from "path";
+import fs from "fs";
+
+export const config = {
+  api: { bodyParser: false },
+};
+
+export async function POST(req: NextRequest) {
+  const formData = await req.formData();
+  const file = formData.get("file") as File | null;
+  const projectId = formData.get("projectId") as string | null;
+
+  if (!file || !projectId) {
+    return NextResponse.json({ error: "Missing file or projectId" }, { status: 400 });
+  }
+
+  const project = projectQueries.getById.get(projectId);
+  if (!project) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  // Save to public/assets/
+  const assetsDir = path.join(process.cwd(), "public", "assets");
+  if (!fs.existsSync(assetsDir)) {
+    fs.mkdirSync(assetsDir, { recursive: true });
+  }
+
+  // Sanitize filename
+  const ext = path.extname(file.name);
+  const baseName = path.basename(file.name, ext).replace(/[^a-zA-Z0-9_\-. ]/g, "_");
+  const fileName = `${baseName}${ext}`;
+  const filePath = path.join(assetsDir, fileName);
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await writeFile(filePath, buffer);
+
+  // Update project
+  const relativePath = `assets/${fileName}`;
+  projectQueries.updateField(projectId, {
+    source_video: relativePath,
+    status: "draft",
+  });
+
+  return NextResponse.json({
+    path: relativePath,
+    url: `/${relativePath}`,
+    size: buffer.length,
+  });
+}

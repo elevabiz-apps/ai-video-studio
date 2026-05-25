@@ -1,15 +1,28 @@
 {
   "compilerOptions": {
     "target": "ES2018",
-    "module": "commonjs",
-    "jsx": "react-jsx",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
-    "lib": ["es2015"],
     "esModuleInterop": true,
-    "skipLibCheck": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
     "forceConsistentCasingInFileNames": true,
-    "noUnusedLocals": true
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
-  "exclude": ["remotion.config.ts", "skills", ".agents"]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "remotion.config.ts", "skills", ".agents"]
 }

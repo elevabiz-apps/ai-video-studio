@@ -2,6 +2,7 @@ import {Composition, Folder} from "remotion";
 
 // Compositions
 import {ShowcaseComposition} from "./compositions/Showcase";
+import {DuelosEdit} from "./compositions/DuelosEdit";
 
 // Social templates
 import {TikTokVideo} from "./templates/social/TikTokVideo";
@@ -133,6 +134,14 @@ export const RemotionRoot: React.FC = () => {
       </Folder>
 
       <Folder name="Editing">
+        <Composition
+          id="DuelosEdit"
+          component={DuelosEdit}
+          durationInFrames={2259}
+          fps={30}
+          width={1080}
+          height={1920}
+        />
         <Composition
           id="TalkingHeadEdit"
           component={TalkingHeadEdit}

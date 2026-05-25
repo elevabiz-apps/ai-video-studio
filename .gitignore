@@ -10,6 +10,31 @@ dist/
 *.mov
 *.gif
 
+# Next.js
+.next/
+next-env.d.ts
+
+# Local database & uploads
+.studio/
+studio.db
+public/assets/
+public/renders/
+
+# Environment variables
+.env
+.env.local
+.upload-tokens.json
+
+# Build artifacts
+.cache/
+tsconfig.tsbuildinfo
+
+# Whisper model (large compiled binary)
+whisper.cpp/
+
+# Claude
+.claude/launch.json
+
 # Agent configs (created by skills installer for other AI tools)
 .codebuddy/
 .commandcode/

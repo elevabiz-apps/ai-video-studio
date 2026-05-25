@@ -34,10 +34,10 @@ async function main() {
   });
   console.log(alreadyExisted ? "Whisper.cpp already installed" : "Whisper.cpp installed");
 
-  // Step 2: Download model
-  console.log("Downloading model (medium.en)...");
+  // Step 2: Download model (multilingual for Spanish support)
+  console.log("Downloading model (medium)...");
   await downloadWhisperModel({
-    model: "medium.en",
+    model: "medium",
     folder: whisperPath,
   });
   console.log("Model ready");
@@ -45,11 +45,12 @@ async function main() {
   // Step 3: Transcribe
   console.log(`Transcribing: ${inputPath}`);
   const whisperOutput = await transcribe({
-    model: "medium.en",
+    model: "medium",
     whisperPath,
     whisperCppVersion: "1.5.5",
     inputPath,
     tokenLevelTimestamps: true,
+    language: "es",
   });
 
   // Step 4: Convert to captions

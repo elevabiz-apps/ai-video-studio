@@ -39,7 +39,7 @@ export const CoursePromo: React.FC<CoursePromoProps> = ({
 
   return (
     <AbsoluteFill>
-      <GradientBackground colors={backgroundColors} angle={160} animated />
+      <GradientBackground colors={backgroundColors} angle={160} animateAngle />
 
       <SafeArea paddingHorizontal={60} paddingVertical={120}>
         {/* Course name with neon glow */}
@@ -157,7 +157,7 @@ export const CoursePromo: React.FC<CoursePromoProps> = ({
         </Sequence>
 
         {/* Progress bar */}
-        <ProgressBar accentColor={accentColor} height={4} />
+        <ProgressBar color={accentColor} height={4} />
       </SafeArea>
     </AbsoluteFill>
   );

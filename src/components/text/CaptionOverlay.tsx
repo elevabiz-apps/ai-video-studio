@@ -19,6 +19,8 @@ export type CaptionPreset = "classic" | "bold" | "outline" | "glow" | "box";
 
 export interface CaptionOverlayProps {
   captionsSource: string;
+  /** Pass captions JSON directly (skips fetch, used for web preview) */
+  captionsData?: Caption[];
   preset?: CaptionPreset;
   position?: "top" | "center" | "bottom";
   fontSize?: number;
@@ -70,6 +72,7 @@ const PRESET_STYLES: Record<CaptionPreset, {
 
 export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
   captionsSource,
+  captionsData,
   preset = "bold",
   position = "bottom",
   fontSize = 64,
@@ -80,14 +83,22 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
   offsetMs = 0,
   style,
 }) => {
-  const [captions, setCaptions] = useState<Caption[] | null>(null);
-  const [handle] = useState(() => delayRender("Loading captions"));
+  const [captions, setCaptions] = useState<Caption[] | null>(captionsData ?? null);
+  const [handle] = useState(() =>
+    captionsData ? null : delayRender("Loading captions")
+  );
   const {fps} = useVideoConfig();
 
   const fontName = fontFamily.replace(/'/g, "").split(",")[0].trim();
   loadGoogleFont(fontName);
 
   useEffect(() => {
+    // If captionsData was provided directly, skip fetch
+    if (captionsData) {
+      setCaptions(captionsData);
+      return;
+    }
+    if (!captionsSource || !handle) return;
     fetch(staticFile(captionsSource))
       .then((r) => r.json())
       .then((data: Caption[]) => {
@@ -103,7 +114,7 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
         continueRender(handle);
       })
       .catch((e) => cancelRender(e));
-  }, [captionsSource, offsetMs, handle]);
+  }, [captionsSource, captionsData, offsetMs, handle]);
 
   const pages = useMemo(() => {
     if (!captions) return [];
@@ -116,31 +127,33 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
 
   if (!captions) return null;
 
-  const positionStyles: React.CSSProperties = {
+  const basePositionStyle: React.CSSProperties = {
     top: {top: 80},
-    center: {top: "50%", transform: "translateY(-50%)"},
+    center: {top: "50%", extraTransform: "translateY(-50%)"},
     bottom: {bottom: 120},
-  }[position];
+  }[position] as React.CSSProperties;
+
+  // Merge custom style overrides
+  const mergedPositionStyle: React.CSSProperties = {...basePositionStyle, ...style};
+
+  // Extract transform separately so we can combine with translateX(-50%)
+  const extraTransform = (mergedPositionStyle as any).extraTransform ?? mergedPositionStyle.transform ?? "";
+  const {transform: _t, extraTransform: _e, ...positionStyleClean} = mergedPositionStyle as any;
+  const combinedTransform = `translateX(-50%)${extraTransform ? ` ${extraTransform}` : ""}`;
 
   const presetStyle = PRESET_STYLES[preset];
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        display: "flex",
-        justifyContent: "center",
-        pointerEvents: "none",
-        ...positionStyles,
-        ...style,
-      }}
-    >
+    <>
       {pages.map((page, index) => {
         const startFrame = Math.round((page.startMs / 1000) * fps);
-        const nextStart = pages[index + 1]?.startMs ?? page.startMs + combineTokensWithinMs;
-        const endFrame = Math.round((nextStart / 1000) * fps);
+        // Page ends when the last token finishes + 200ms buffer
+        // (not when the next page starts, to avoid showing stale captions during silences)
+        const lastToken = page.tokens[page.tokens.length - 1];
+        const pageEndMs = lastToken ? lastToken.toMs + 200 : page.startMs + combineTokensWithinMs;
+        const nextStart = pages[index + 1]?.startMs ?? pageEndMs;
+        const endMs = Math.min(nextStart, pageEndMs);
+        const endFrame = Math.round((endMs / 1000) * fps);
         const duration = endFrame - startFrame;
 
         if (duration <= 0) return null;
@@ -155,11 +168,13 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
               highlightColor={highlightColor}
               presetStyle={presetStyle}
               preset={preset}
+              positionStyle={positionStyleClean}
+              combinedTransform={combinedTransform}
             />
           </Sequence>
         );
       })}
-    </div>
+    </>
   );
 };
 
@@ -171,6 +186,8 @@ interface CaptionPageProps {
   highlightColor: string;
   presetStyle: typeof PRESET_STYLES[CaptionPreset];
   preset: CaptionPreset;
+  positionStyle: React.CSSProperties;
+  combinedTransform: string;
 }
 
 const CaptionPage: React.FC<CaptionPageProps> = ({
@@ -181,6 +198,8 @@ const CaptionPage: React.FC<CaptionPageProps> = ({
   highlightColor,
   presetStyle,
   preset,
+  positionStyle,
+  combinedTransform,
 }) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
@@ -191,11 +210,16 @@ const CaptionPage: React.FC<CaptionPageProps> = ({
   return (
     <div
       style={{
+        position: "absolute",
         textAlign: "center",
         maxWidth: "85%",
+        pointerEvents: "none",
         padding: preset === "box" ? "12px 20px" : 0,
         borderRadius: preset === "box" ? 8 : 0,
         backgroundColor: preset === "box" ? presetStyle.bg : "transparent",
+        ...positionStyle,
+        left: "50%",
+        transform: combinedTransform,
       }}
     >
       <span
@@ -204,7 +228,7 @@ const CaptionPage: React.FC<CaptionPageProps> = ({
           fontFamily,
           fontWeight: 800,
           lineHeight: 1.3,
-          whiteSpace: "pre",
+          whiteSpace: "nowrap",
         }}
       >
         {page.tokens.map((token, i) => {

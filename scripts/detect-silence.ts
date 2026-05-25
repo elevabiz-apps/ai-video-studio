@@ -4,7 +4,7 @@
  * Usage: npx tsx scripts/detect-silence.ts public/assets/video.mp4 [noise-db] [min-duration]
  * Output: public/silence.json
  */
-import {execSync} from "child_process";
+import {spawnSync} from "child_process";
 import {writeFileSync} from "fs";
 import path from "path";
 
@@ -23,9 +23,20 @@ console.log(`Detecting silence in: ${inputPath}`);
 console.log(`  Noise threshold: ${noiseDb}`);
 console.log(`  Min silence duration: ${minDuration}s`);
 
-// Run FFmpeg silencedetect
-const cmd = `npx remotion ffmpeg -i "${inputPath}" -af "silencedetect=noise=${noiseDb}:d=${minDuration}" -f null - 2>&1`;
-const output = execSync(cmd, {encoding: "utf-8"});
+// Use spawnSync (no shell) so DYLD_LIBRARY_PATH reaches the binary on macOS
+const compositorDir = path.join(process.cwd(), "node_modules", "@remotion", "compositor-darwin-arm64");
+const ffmpegBin = path.join(compositorDir, "ffmpeg");
+const ffResult = spawnSync(ffmpegBin, [
+  "-i", inputPath, "-vn",
+  "-af", `silencedetect=noise=${noiseDb}:d=${minDuration}`,
+  "-f", "null", "-"
+], {
+  encoding: "utf-8",
+  env: { ...process.env, DYLD_LIBRARY_PATH: compositorDir },
+});
+
+// ffmpeg writes to stderr; combine both
+const output = (ffResult.stdout ?? "") + (ffResult.stderr ?? "");
 
 // Parse silence_start and silence_end from stderr
 const silenceSegments: Array<{start: number; end: number}> = [];
