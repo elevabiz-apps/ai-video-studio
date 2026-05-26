@@ -1,15 +1,17 @@
 #!/usr/bin/env npx tsx
 /**
- * Transcribe audio using Whisper.cpp with word-level timestamps.
+ * Transcribe audio using Groq's Whisper API (no local compilation needed).
  * Usage: npx tsx scripts/transcribe.ts [audio-path]
  * Default audio: public/assets/audio.wav
  * Output: public/captions.json
+ *
+ * Requires GROQ_API_KEY env var. Free tier: 2h audio/day.
+ * Get a free key at: https://console.groq.com
  */
 import path from "path";
-import {writeFileSync, existsSync} from "fs";
+import { writeFileSync, existsSync, readFileSync } from "fs";
 
 const inputPath = process.argv[2] || path.join("public", "assets", "audio.wav");
-const whisperPath = path.join(process.cwd(), "whisper.cpp");
 const outputPath = path.join("public", "captions.json");
 
 if (!existsSync(inputPath)) {
@@ -18,43 +20,69 @@ if (!existsSync(inputPath)) {
   process.exit(1);
 }
 
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+if (!GROQ_API_KEY) {
+  console.error("GROQ_API_KEY env var is not set.");
+  console.error("Get a free key at https://console.groq.com and add it to Railway Variables.");
+  process.exit(1);
+}
+
+type GroqWord = { word: string; start: number; end: number };
+type GroqSegment = { text: string; start: number; end: number };
+type Caption = { text: string; startMs: number; endMs: number };
+
 async function main() {
-  const {
-    installWhisperCpp,
-    downloadWhisperModel,
-    transcribe,
-    toCaptions,
-  } = await import("@remotion/install-whisper-cpp");
-
-  // Step 1: Install Whisper.cpp
-  console.log("Installing Whisper.cpp (first time only)...");
-  const {alreadyExisted} = await installWhisperCpp({
-    to: whisperPath,
-    version: "1.5.5",
-  });
-  console.log(alreadyExisted ? "Whisper.cpp already installed" : "Whisper.cpp installed");
-
-  // Step 2: Download model (multilingual for Spanish support)
-  console.log("Downloading model (medium)...");
-  await downloadWhisperModel({
-    model: "medium",
-    folder: whisperPath,
-  });
-  console.log("Model ready");
-
-  // Step 3: Transcribe
   console.log(`Transcribing: ${inputPath}`);
-  const whisperOutput = await transcribe({
-    model: "medium",
-    whisperPath,
-    whisperCppVersion: "1.5.5",
-    inputPath,
-    tokenLevelTimestamps: true,
-    language: "es",
+  console.log(`Using Groq Whisper API (whisper-large-v3-turbo)...`);
+
+  const audioBuffer = readFileSync(inputPath);
+  const blob = new Blob([audioBuffer], { type: "audio/wav" });
+
+  const formData = new FormData();
+  formData.append("file", blob, path.basename(inputPath));
+  formData.append("model", "whisper-large-v3-turbo");
+  formData.append("language", "es");
+  formData.append("response_format", "verbose_json");
+  formData.append("timestamp_granularities[]", "word");
+
+  const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+    body: formData,
   });
 
-  // Step 4: Convert to captions
-  const {captions} = toCaptions({whisperCppOutput: whisperOutput});
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error(`Groq API error ${response.status}: ${errText}`);
+    process.exit(1);
+  }
+
+  const result = await response.json() as {
+    text: string;
+    words?: GroqWord[];
+    segments?: GroqSegment[];
+  };
+
+  let captions: Caption[] = [];
+
+  if (result.words && result.words.length > 0) {
+    // Word-level timestamps (preferred — matches karaoke subtitle behavior)
+    captions = result.words.map((w) => ({
+      text: w.word,
+      startMs: Math.round(w.start * 1000),
+      endMs: Math.round(w.end * 1000),
+    }));
+  } else if (result.segments && result.segments.length > 0) {
+    // Fallback: segment-level (e.g. if word timestamps unavailable)
+    captions = result.segments.map((s) => ({
+      text: s.text,
+      startMs: Math.round(s.start * 1000),
+      endMs: Math.round(s.end * 1000),
+    }));
+  } else {
+    // Last resort: whole transcript as one caption
+    captions = [{ text: result.text, startMs: 0, endMs: 0 }];
+  }
 
   writeFileSync(outputPath, JSON.stringify(captions, null, 2));
   console.log(`\nCaptions saved to ${outputPath}`);
@@ -67,6 +95,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Transcription failed:", err.message);
+  console.error("Transcription failed:", err.message ?? err);
   process.exit(1);
 });
