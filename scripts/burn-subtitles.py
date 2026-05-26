@@ -288,13 +288,26 @@ sys.stderr.flush()
 #  1. The subprocess writes to stderr using \\r (no \\n), which confuses line readers
 #  2. The caller (Node.js) may buffer our stderr pipe, causing a cascading deadlock
 #     if we try to forward every ffmpeg frame line synchronously.
+FFMPEG_TIMEOUT = 5 * 60  # 5 minutes — hard kill if ffmpeg hangs (e.g. libass/fontconfig)
+
 proc = subprocess.Popen(
     cmd,
     stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
     env={**os.environ},
 )
-_, stderr_bytes = proc.communicate()
+
+stderr_bytes = b""
+try:
+    _, stderr_bytes = proc.communicate(timeout=FFMPEG_TIMEOUT)
+except subprocess.TimeoutExpired:
+    proc.kill()
+    _, stderr_bytes = proc.communicate()
+    print(f"[subtitles] ERROR: ffmpeg timed out after {FFMPEG_TIMEOUT}s — killed", file=sys.stderr)
+    print("[subtitles] Tip: libass/fontconfig may be hanging (no fonts installed or bad font cache)",
+          file=sys.stderr)
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+    sys.exit(1)
 
 if proc.returncode != 0:
     # Forward the ffmpeg error log so Railway surfaces it

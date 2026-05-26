@@ -191,11 +191,6 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   );
 
   const CAPTION_PRESETS = ["bold", "classic", "outline", "glow", "box"] as const;
-  const PLATFORMS = [
-    { id: "tiktok", label: "TikTok", icon: "🎵" },
-    { id: "youtube_short", label: "YouTube Shorts", icon: "▶️" },
-    { id: "instagram_reel", label: "Instagram Reel", icon: "📸" },
-  ];
 
   const hasVideo = !!project.source_video;
   const isProcessing = project.status === "processing" || !!jobId;
@@ -479,47 +474,36 @@ export default function ProjectEditor({ project: initialProject, renders: initia
                 done={renders.some((r) => r.status === "complete")}
                 disabled={!isReady}
               >
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {PLATFORMS.map((p) => {
-                    const existing = renders.find((r) => r.platform === p.id);
-                    return (
-                      <div
-                        key={p.id}
+                {(() => {
+                  const latest = renders[0] ?? null;
+                  const isRendering = latest?.status === "rendering" || latest?.status === "queued";
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <button
+                        onClick={() => triggerRender("video")}
+                        disabled={!isReady || isRendering}
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          background: "var(--muted)",
+                          background: isReady && !isRendering ? "var(--accent)" : "transparent",
+                          border: isReady && !isRendering ? "none" : "1px solid var(--border)",
                           borderRadius: 8,
-                          padding: "10px 12px",
+                          padding: "10px 16px",
+                          fontSize: 14,
+                          color: isReady && !isRendering ? "#fff" : "var(--muted-foreground)",
+                          cursor: isReady && !isRendering ? "pointer" : "not-allowed",
+                          fontWeight: 600,
+                          width: "100%",
                         }}
                       >
-                        <div style={{ fontSize: 13 }}>
-                          {p.icon} {p.label}
+                        {isRendering ? "⏳ Renderizando..." : "🎬 Renderizar video"}
+                      </button>
+                      {latest && (
+                        <div style={{ display: "flex", justifyContent: "center" }}>
+                          <RenderStatus render={latest} />
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          {existing && <RenderStatus render={existing} />}
-                          <button
-                            onClick={() => triggerRender(p.id)}
-                            disabled={!isReady || existing?.status === "rendering"}
-                            style={{
-                              background: isReady ? "var(--accent)" : "transparent",
-                              border: isReady ? "none" : "1px solid var(--border)",
-                              borderRadius: 6,
-                              padding: "4px 10px",
-                              fontSize: 12,
-                              color: isReady ? "#fff" : "var(--muted-foreground)",
-                              cursor: isReady ? "pointer" : "not-allowed",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {existing?.status === "rendering" ? "..." : "Render"}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </StepSection>
             </>
           )}
