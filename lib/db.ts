@@ -6,20 +6,27 @@ const DB_DIR = path.join(process.cwd(), ".studio");
 const DB_PATH = path.join(DB_DIR, "studio.db");
 
 // Lazy singleton — only connect when first accessed (not at import time).
-// This prevents SQLITE_BUSY during Next.js build, which imports all modules
-// in parallel workers without actually calling any route handlers.
+// During Next.js build phase, use an in-memory DB per worker to avoid
+// SQLITE_BUSY from parallel build workers competing on the same file.
 let _db: InstanceType<typeof Database> | null = null;
+
+const IS_BUILD = process.env.NEXT_PHASE === "phase-production-build";
 
 function getDb(): InstanceType<typeof Database> {
   if (_db) return _db;
 
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
+  if (IS_BUILD) {
+    // In-memory DB for each build worker — no file locking, no SQLITE_BUSY
+    _db = new Database(":memory:");
+  } else {
+    if (!fs.existsSync(DB_DIR)) {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+    _db = new Database(DB_PATH);
+    _db.pragma("busy_timeout = 10000");
   }
 
-  _db = new Database(DB_PATH);
   _db.pragma("journal_mode = WAL");
-  _db.pragma("busy_timeout = 10000"); // wait up to 10s on lock instead of failing
   _db.pragma("foreign_keys = ON");
 
   // Migrations (safe to run on existing DBs)
