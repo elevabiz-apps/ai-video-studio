@@ -77,7 +77,7 @@ export async function spawnRender(
         startMs,
         endMs,
         captionPreset,
-        async (pct) => await updateRender(renderId, "rendering", 20 + Math.round(pct * 0.75))
+        async (pct) => await updateRender(renderId, "rendering", 20 + Math.round(pct * 75))
       );
 
       try { fs.unlinkSync(tmpCaptions); } catch { /* ignore */ }

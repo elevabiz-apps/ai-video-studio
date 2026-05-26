@@ -158,11 +158,16 @@ export default function ProjectEditor({ project: initialProject, renders: initia
 
   async function pollRender(renderId: string) {
     const interval = setInterval(async () => {
-      const res = await fetch(`/api/render/${renderId}`);
-      const r = await res.json();
-      setRenders((prev) => prev.map((rr) => (rr.id === renderId ? r : rr)));
-      if (r.status === "complete" || r.status === "failed") {
-        clearInterval(interval);
+      try {
+        const res = await fetch(`/api/render/${renderId}`, { cache: "no-store" });
+        if (!res.ok) return; // transient error — keep polling
+        const r = await res.json();
+        setRenders((prev) => prev.map((rr) => (rr.id === renderId ? r : rr)));
+        if (r.status === "complete" || r.status === "failed" || isRenderTimedOut(r)) {
+          clearInterval(interval);
+        }
+      } catch {
+        // network error — keep polling, will retry next tick
       }
     }, 1500);
   }
@@ -489,7 +494,10 @@ export default function ProjectEditor({ project: initialProject, renders: initia
               >
                 {(() => {
                   const latest = renders[0] ?? null;
-                  const isRendering = latest?.status === "rendering" || latest?.status === "queued";
+                  const isRendering =
+                    latest !== null &&
+                    (latest.status === "rendering" || latest.status === "queued") &&
+                    !isRenderTimedOut(latest);
                   return (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       <button
@@ -626,7 +634,25 @@ function SuccessRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+// A render is considered "timed out" if it's been in-progress for > 15 minutes.
+// This handles container restarts that leave a render stuck as "rendering" in the DB.
+function isRenderTimedOut(render: Render) {
+  if (render.status !== "rendering" && render.status !== "queued") return false;
+  if (!render.created_at) return false;
+  const ageMs = Date.now() - new Date(render.created_at).getTime();
+  return ageMs > 15 * 60 * 1000; // 15 minutes
+}
+
 function RenderStatus({ render }: { render: Render }) {
+  const timedOut = isRenderTimedOut(render);
+
+  if (timedOut) {
+    return (
+      <span style={{ fontSize: 12, color: "var(--destructive)" }}>
+        ✕ Tiempo agotado — volvé a intentar
+      </span>
+    );
+  }
   if (render.status === "rendering" || render.status === "queued") {
     const label = render.status === "queued"
       ? "En cola..."
@@ -651,7 +677,7 @@ function RenderStatus({ render }: { render: Render }) {
   if (render.status === "failed") {
     return (
       <span style={{ fontSize: 12, color: "var(--destructive)" }} title={render.error ?? ""}>
-        ✕ Error
+        ✕ Error — volvé a intentar
       </span>
     );
   }
