@@ -9,7 +9,10 @@ import { hasSupabase, getSupabaseClient } from "./supabase-client";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function supabase() {
+// Cast to any so TypeScript doesn't complain about unknown table schemas.
+// The Supabase client is untyped (no generated types file) — we manage types via our own interfaces.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function supabase(): any {
   return getSupabaseClient();
 }
 

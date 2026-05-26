@@ -1,12 +1,10 @@
 export const dynamic = "force-dynamic";
-// Allow large video uploads (up to 500MB)
-export const maxDuration = 300;
-// Next.js App Router body size limit (overrides the default 4MB)
-export const runtime = "nodejs";
+export const maxDuration = 300; // 5 min timeout for large uploads
 
 import { NextRequest, NextResponse } from "next/server";
 import { getProjectById, updateProjectField } from "@/lib/db-async";
-import { writeFile } from "fs/promises";
+import { pipeline } from "stream/promises";
+import { Readable } from "stream";
 import path from "path";
 import fs from "fs";
 
@@ -36,8 +34,13 @@ export async function POST(req: NextRequest) {
   const fileName = `${baseName}${ext}`;
   const filePath = path.join(assetsDir, fileName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(filePath, buffer);
+  // Stream directly to disk — avoids loading entire video into RAM
+  // (critical for large files on Railway's 512MB container)
+  const fileStream = Readable.fromWeb(file.stream() as Parameters<typeof Readable.fromWeb>[0]);
+  const writeStream = fs.createWriteStream(filePath);
+  await pipeline(fileStream, writeStream);
+
+  const fileSize = fs.statSync(filePath).size;
 
   // Update project
   const relativePath = `assets/${fileName}`;
@@ -49,6 +52,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     path: relativePath,
     url: `/${relativePath}`,
-    size: buffer.length,
+    size: fileSize,
   });
 }
