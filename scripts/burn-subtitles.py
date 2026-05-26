@@ -70,7 +70,15 @@ with open(CAPTIONS_JSON, "r") as f:
 clip_tokens = [t for t in all_tokens
                if t["endMs"] > CLIP_START_MS and t["startMs"] < CLIP_END_MS]
 
-all_words = merge_subword_tokens(clip_tokens)
+# Groq returns words without leading spaces; Whisper uses " word" prefix for new words.
+# Detect which format we have and handle accordingly.
+has_leading_spaces = any(t["text"].startswith(" ") for t in clip_tokens)
+if has_leading_spaces:
+    all_words = merge_subword_tokens(clip_tokens)
+else:
+    # Groq API: tokens are already individual words, no merging needed
+    all_words = [{"text": t["text"].strip(), "startMs": t["startMs"], "endMs": t["endMs"]}
+                 for t in clip_tokens if t["text"].strip()]
 
 # Group into phrases of MAX_WORDS
 phrases = []
