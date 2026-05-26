@@ -177,10 +177,11 @@ function runSubtitleBurn(
 
     // IMPORTANT: await onProgress before resolve() so the "rendering,95" DB write
     // can't race against (and overwrite) the caller's "complete,100" DB write.
+    // Use Promise.resolve() to handle both void and Promise<void> return types.
     proc.on("close", (code) => {
       clearTimeout(timeoutId);
       if (code === 0) {
-        onProgress(1).then(() => resolve()).catch(() => resolve());
+        Promise.resolve(onProgress(1)).then(() => resolve()).catch(() => resolve());
       } else {
         reject(new Error(`burn-subtitles.py exited with code ${code}`));
       }
