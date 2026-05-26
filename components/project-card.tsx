@@ -26,7 +26,11 @@ export default function ProjectCard({ project }: { project: Project }) {
     rendered: "Renderizado",
   };
 
-  const date = new Date(project.created_at + "Z").toLocaleDateString("es-AR", {
+  // Supabase returns ISO 8601 with timezone (e.g. "2026-05-26T03:00:53+00:00")
+  // SQLite returns without timezone (e.g. "2026-05-26 03:00:53") — needs "Z" appended
+  const rawDate = project.created_at;
+  const isoDate = /[+Z]/.test(rawDate) ? rawDate : rawDate.replace(" ", "T") + "Z";
+  const date = new Date(isoDate).toLocaleDateString("es-AR", {
     day: "numeric",
     month: "short",
     year: "numeric",
