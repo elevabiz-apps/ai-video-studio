@@ -73,8 +73,8 @@ export default function ProjectEditor({ project: initialProject, renders: initia
       }
       const { filename } = await urlRes.json();
 
-      // Chunked upload: split into 45 MB pieces to stay under proxy limits
-      const CHUNK_SIZE = 45 * 1024 * 1024; // 45 MB
+      // Chunked upload: split into 10 MB pieces to stay under proxy limits
+      const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       const uploadId = crypto.randomUUID();
 
@@ -100,7 +100,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
           };
           xhr.onerror = () => reject(new Error(`Error de red al subir parte ${i + 1}`));
           xhr.ontimeout = () => reject(new Error(`Timeout al subir parte ${i + 1}`));
-          xhr.timeout = 120000; // 2 min per chunk
+          xhr.timeout = 300000; // 5 min per chunk
 
           const formData = new FormData();
           formData.append("chunk", new File([chunk], filename, { type: file.type }));
