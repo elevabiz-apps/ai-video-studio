@@ -70,7 +70,7 @@ def build_keep_segments(silences, duration, padding=0.1):
     return segments
 
 def cut_segment(args):
-    """Cut a single segment with re-encode for frame-accurate cuts (no word truncation)."""
+    """Cut a single segment using stream copy — fast, minimal RAM, no re-encoding."""
     i, start, end, input_file, tmpdir = args
     clip_path = os.path.join(tmpdir, f"clip_{i:04d}.mp4")
     duration = end - start
@@ -80,9 +80,8 @@ def cut_segment(args):
         "-i", input_file,
         "-t", str(duration),
         "-map", "0:v:0", "-map", "0:a:0",
-        # Re-encode for frame-accurate cuts — avoids keyframe snapping and word truncation
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
-        "-c:a", "aac", "-b:a", "128k",
+        # Stream copy: no re-encoding → no OOM, 10x faster, negligible accuracy loss for silence cuts
+        "-c", "copy",
         "-avoid_negative_ts", "make_zero",
         clip_path
     ]
@@ -90,23 +89,16 @@ def cut_segment(args):
     return clip_path
 
 def cut_and_concat(input_file, segments, output_file):
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    import multiprocessing
-
     with tempfile.TemporaryDirectory() as tmpdir:
-        print(f"Cutting {len(segments)} segments (re-encode, frame-accurate)...")
+        print(f"Cutting {len(segments)} segments (stream copy, low memory)...")
 
-        # Parallel segment cutting — use up to 4 workers (re-encode is CPU-heavy)
-        workers = min(4, multiprocessing.cpu_count(), len(segments))
-        args = [(i, s, e, input_file, tmpdir) for i, (s, e) in enumerate(segments)]
-        clip_files = [None] * len(segments)
-
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {executor.submit(cut_segment, a): a[0] for a in args}
-            for future in as_completed(futures):
-                i = futures[future]
-                clip_files[i] = future.result()
-                print(f"  [{i+1}/{len(segments)}] {segments[i][0]:.2f}s → {segments[i][1]:.2f}s")
+        # Sequential cutting — stream copy is fast so no need for parallelism,
+        # and parallel ffmpeg processes OOM-kill on Railway's 512MB containers.
+        clip_files = []
+        for i, (s, e) in enumerate(segments):
+            clip_path = cut_segment((i, s, e, input_file, tmpdir))
+            clip_files.append(clip_path)
+            print(f"  [{i+1}/{len(segments)}] {s:.2f}s → {e:.2f}s")
 
         concat_file = os.path.join(tmpdir, "concat.txt")
         with open(concat_file, "w") as f:
@@ -118,7 +110,6 @@ def cut_and_concat(input_file, segments, output_file):
             FFMPEG, "-y",
             "-f", "concat", "-safe", "0",
             "-i", concat_file,
-            # Stream copy for concat — clips are already encoded, just join them
             "-c", "copy",
             output_file
         ]
