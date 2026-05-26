@@ -5,21 +5,30 @@ import fs from "fs";
 const DB_DIR = path.join(process.cwd(), ".studio");
 const DB_PATH = path.join(DB_DIR, "studio.db");
 
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
-}
+// Lazy singleton — only connect when first accessed (not at import time).
+// This prevents SQLITE_BUSY during Next.js build, which imports all modules
+// in parallel workers without actually calling any route handlers.
+let _db: InstanceType<typeof Database> | null = null;
 
-const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+function getDb(): InstanceType<typeof Database> {
+  if (_db) return _db;
 
-// Migrations (safe to run on existing DBs)
-try { db.exec(`ALTER TABLE clips ADD COLUMN output_path TEXT`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE clips ADD COLUMN hook_phrase TEXT`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE projects ADD COLUMN original_video TEXT`); } catch { /* already exists */ }
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+  }
 
-// Initialize schema
-db.exec(`
+  _db = new Database(DB_PATH);
+  _db.pragma("journal_mode = WAL");
+  _db.pragma("busy_timeout = 10000"); // wait up to 10s on lock instead of failing
+  _db.pragma("foreign_keys = ON");
+
+  // Migrations (safe to run on existing DBs)
+  try { _db.exec(`ALTER TABLE clips ADD COLUMN output_path TEXT`); } catch { /* already exists */ }
+  try { _db.exec(`ALTER TABLE clips ADD COLUMN hook_phrase TEXT`); } catch { /* already exists */ }
+  try { _db.exec(`ALTER TABLE projects ADD COLUMN original_video TEXT`); } catch { /* already exists */ }
+
+  // Initialize schema
+  _db.exec(`
   CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -79,6 +88,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_renders_project ON renders(project_id);
 `);
 
+  return _db;
+}
+
 export type Project = {
   id: string;
   name: string;
@@ -136,85 +148,55 @@ export type Job = {
 
 // Project queries
 export const projectQueries = {
-  getAll: db.prepare<[], Project>("SELECT * FROM projects ORDER BY created_at DESC"),
-  getById: db.prepare<[string], Project>("SELECT * FROM projects WHERE id = ?"),
-  create: db.prepare<[string, string, string], void>(
-    "INSERT INTO projects (id, name, mode) VALUES (?, ?, ?)"
-  ),
-  update: db.prepare<[string, string], void>(
-    "UPDATE projects SET status = ?, updated_at = datetime('now') WHERE id = ?"
-  ),
-  updateField: (id: string, fields: Partial<Omit<Project, "id" | "created_at">>) => {
+  get getAll() { return getDb().prepare<[], Project>("SELECT * FROM projects ORDER BY created_at DESC"); },
+  get getById() { return getDb().prepare<[string], Project>("SELECT * FROM projects WHERE id = ?"); },
+  get create() { return getDb().prepare<[string, string, string], void>("INSERT INTO projects (id, name, mode) VALUES (?, ?, ?)"); },
+  get update() { return getDb().prepare<[string, string], void>("UPDATE projects SET status = ?, updated_at = datetime('now') WHERE id = ?"); },
+  updateField(id: string, fields: Partial<Omit<Project, "id" | "created_at">>) {
     const keys = Object.keys(fields).filter((k) => k !== "updated_at");
     if (keys.length === 0) return;
     const setClause = keys.map((k) => `${k} = ?`).join(", ");
     const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
-    db.prepare(
-      `UPDATE projects SET ${setClause}, updated_at = datetime('now') WHERE id = ?`
-    ).run(...values, id);
+    getDb().prepare(`UPDATE projects SET ${setClause}, updated_at = datetime('now') WHERE id = ?`).run(...values, id);
   },
-  delete: db.prepare<[string], void>("DELETE FROM projects WHERE id = ?"),
+  get delete() { return getDb().prepare<[string], void>("DELETE FROM projects WHERE id = ?"); },
 };
 
 // Job queries
 export const jobQueries = {
-  getById: db.prepare<[string], Job>("SELECT * FROM jobs WHERE id = ?"),
-  getByProject: db.prepare<[string], Job>(
-    "SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at DESC"
-  ),
-  getLatestByProject: db.prepare<[string], Job>(
-    "SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at DESC LIMIT 1"
-  ),
-  create: db.prepare<[string, string, string], void>(
-    "INSERT INTO jobs (id, type, project_id) VALUES (?, ?, ?)"
-  ),
-  updateStatus: db.prepare<[string, number, string | null, string | null, string], void>(
-    "UPDATE jobs SET status = ?, progress = ?, current_step = ?, error = ?, updated_at = datetime('now') WHERE id = ?"
-  ),
-  setResult: db.prepare<[string, string], void>(
-    "UPDATE jobs SET result = ?, status = 'complete', progress = 100, updated_at = datetime('now') WHERE id = ?"
-  ),
+  get getById() { return getDb().prepare<[string], Job>("SELECT * FROM jobs WHERE id = ?"); },
+  get getByProject() { return getDb().prepare<[string], Job>("SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at DESC"); },
+  get getLatestByProject() { return getDb().prepare<[string], Job>("SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at DESC LIMIT 1"); },
+  get create() { return getDb().prepare<[string, string, string], void>("INSERT INTO jobs (id, type, project_id) VALUES (?, ?, ?)"); },
+  get updateStatus() { return getDb().prepare<[string, number, string | null, string | null, string], void>("UPDATE jobs SET status = ?, progress = ?, current_step = ?, error = ?, updated_at = datetime('now') WHERE id = ?"); },
+  get setResult() { return getDb().prepare<[string, string], void>("UPDATE jobs SET result = ?, status = 'complete', progress = 100, updated_at = datetime('now') WHERE id = ?"); },
 };
 
 // Render queries
 export const renderQueries = {
-  getByProject: db.prepare<[string], Render>(
-    "SELECT * FROM renders WHERE project_id = ? ORDER BY created_at DESC"
-  ),
-  create: db.prepare<[string, string, string], void>(
-    "INSERT INTO renders (id, project_id, platform) VALUES (?, ?, ?)"
-  ),
-  update: db.prepare<[string, number, string | null, string], void>(
-    "UPDATE renders SET status = ?, progress = ?, output_path = ? WHERE id = ?"
-  ),
+  get getByProject() { return getDb().prepare<[string], Render>("SELECT * FROM renders WHERE project_id = ? ORDER BY created_at DESC"); },
+  get create() { return getDb().prepare<[string, string, string], void>("INSERT INTO renders (id, project_id, platform) VALUES (?, ?, ?)"); },
+  get update() { return getDb().prepare<[string, number, string | null, string], void>("UPDATE renders SET status = ?, progress = ?, output_path = ? WHERE id = ?"); },
 };
 
 // Clip queries
 export const clipQueries = {
-  getByProject: db.prepare<[string], Clip>(
-    "SELECT * FROM clips WHERE project_id = ? ORDER BY sort_order ASC"
-  ),
-  create: db.prepare<[string, string, number, number], void>(
-    "INSERT INTO clips (id, project_id, start_seconds, end_seconds) VALUES (?, ?, ?, ?)"
-  ),
-  updateScore: db.prepare<[number, string, string], void>(
-    "UPDATE clips SET ai_score = ?, ai_reasoning = ? WHERE id = ?"
-  ),
-  updateName: db.prepare<[string, string], void>(
-    "UPDATE clips SET name = ? WHERE id = ?"
-  ),
-  updateSortOrder: db.prepare<[number, string], void>(
-    "UPDATE clips SET sort_order = ? WHERE id = ?"
-  ),
-  updateOutputPath: db.prepare<[string, string], void>(
-    "UPDATE clips SET output_path = ? WHERE id = ?"
-  ),
-  updateHookPhrase: db.prepare<[string, string], void>(
-    "UPDATE clips SET hook_phrase = ? WHERE id = ?"
-  ),
-  deleteByProject: db.prepare<[string], void>(
-    "DELETE FROM clips WHERE project_id = ?"
-  ),
+  get getByProject() { return getDb().prepare<[string], Clip>("SELECT * FROM clips WHERE project_id = ? ORDER BY sort_order ASC"); },
+  get create() { return getDb().prepare<[string, string, number, number], void>("INSERT INTO clips (id, project_id, start_seconds, end_seconds) VALUES (?, ?, ?, ?)"); },
+  get updateScore() { return getDb().prepare<[number, string, string], void>("UPDATE clips SET ai_score = ?, ai_reasoning = ? WHERE id = ?"); },
+  get updateName() { return getDb().prepare<[string, string], void>("UPDATE clips SET name = ? WHERE id = ?"); },
+  get updateSortOrder() { return getDb().prepare<[number, string], void>("UPDATE clips SET sort_order = ? WHERE id = ?"); },
+  get updateOutputPath() { return getDb().prepare<[string, string], void>("UPDATE clips SET output_path = ? WHERE id = ?"); },
+  get updateHookPhrase() { return getDb().prepare<[string, string], void>("UPDATE clips SET hook_phrase = ? WHERE id = ?"); },
+  get deleteByProject() { return getDb().prepare<[string], void>("DELETE FROM clips WHERE project_id = ?"); },
 };
 
-export default db;
+// Proxy so callers can do `db.prepare(sql).run(...)` without triggering eager init
+const dbProxy = new Proxy({} as InstanceType<typeof Database>, {
+  get(_target, prop: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (getDb() as any)[prop];
+  },
+});
+
+export default dbProxy;
