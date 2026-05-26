@@ -5,8 +5,6 @@ import type { Project } from "@/lib/db";
 import NewProjectButton from "@/components/new-project-button";
 import ProjectCard from "@/components/project-card";
 
-export const dynamic = "force-dynamic";
-
 export default function DashboardPage() {
   const projects = projectQueries.getAll.all() as Project[];
 

@@ -5,8 +5,6 @@ import { notFound } from "next/navigation";
 import type { Project, Render, Clip } from "@/lib/db";
 import ProjectEditor from "@/components/project-editor";
 
-export const dynamic = "force-dynamic";
-
 export default async function ProjectPage({
   params,
 }: {
