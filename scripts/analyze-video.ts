@@ -16,14 +16,18 @@ if (!inputPath) {
 
 console.log(`Analyzing: ${inputPath}`);
 
-// Use spawnSync (no shell) so DYLD_LIBRARY_PATH reaches the binary on macOS
+// Use FFPROBE_PATH env var (set on Railway) or fall back to the bundled macOS binary for local dev
 const compositorDir = path.join(process.cwd(), "node_modules", "@remotion", "compositor-darwin-arm64");
-const ffprobeBin = path.join(compositorDir, "ffprobe");
+const ffprobeBin = process.env.FFPROBE_PATH ?? path.join(compositorDir, "ffprobe");
+const spawnEnv = process.env.FFPROBE_PATH
+  ? process.env
+  : { ...process.env, DYLD_LIBRARY_PATH: compositorDir };
+
 const result = spawnSync(ffprobeBin, [
   "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", inputPath
 ], {
   encoding: "utf-8",
-  env: { ...process.env, DYLD_LIBRARY_PATH: compositorDir },
+  env: spawnEnv,
 });
 
 if (result.error || result.status !== 0) {

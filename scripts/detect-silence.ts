@@ -23,16 +23,20 @@ console.log(`Detecting silence in: ${inputPath}`);
 console.log(`  Noise threshold: ${noiseDb}`);
 console.log(`  Min silence duration: ${minDuration}s`);
 
-// Use spawnSync (no shell) so DYLD_LIBRARY_PATH reaches the binary on macOS
+// Use FFMPEG_PATH env var (set on Railway) or fall back to the bundled macOS binary for local dev
 const compositorDir = path.join(process.cwd(), "node_modules", "@remotion", "compositor-darwin-arm64");
-const ffmpegBin = path.join(compositorDir, "ffmpeg");
+const ffmpegBin = process.env.FFMPEG_PATH ?? path.join(compositorDir, "ffmpeg");
+const spawnEnv = process.env.FFMPEG_PATH
+  ? process.env
+  : { ...process.env, DYLD_LIBRARY_PATH: compositorDir };
+
 const ffResult = spawnSync(ffmpegBin, [
   "-i", inputPath, "-vn",
   "-af", `silencedetect=noise=${noiseDb}:d=${minDuration}`,
   "-f", "null", "-"
 ], {
   encoding: "utf-8",
-  env: { ...process.env, DYLD_LIBRARY_PATH: compositorDir },
+  env: spawnEnv,
 });
 
 // ffmpeg writes to stderr; combine both

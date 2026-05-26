@@ -15,16 +15,19 @@ if (!inputPath) {
 
 const outputPath = path.join("public", "assets", "audio.wav");
 
-// Use the Remotion compositor ffmpeg binary directly (avoids npx hanging)
+// Use FFMPEG_PATH env var (set on Railway) or fall back to the bundled macOS binary for local dev
 const compositorDir = path.join(process.cwd(), "node_modules", "@remotion", "compositor-darwin-arm64");
-const ffmpegBin = path.join(compositorDir, "ffmpeg");
+const ffmpegBin = process.env.FFMPEG_PATH ?? path.join(compositorDir, "ffmpeg");
+const spawnEnv = process.env.FFMPEG_PATH
+  ? process.env
+  : { ...process.env, DYLD_LIBRARY_PATH: compositorDir };
 
 console.log(`Extracting audio from: ${inputPath}`);
 console.log(`Output: ${outputPath}`);
 
 const result = spawnSync(ffmpegBin, ["-i", inputPath, "-ar", "16000", "-ac", "1", "-y", outputPath], {
   stdio: "inherit",
-  env: { ...process.env, DYLD_LIBRARY_PATH: compositorDir },
+  env: spawnEnv,
 });
 
 if (result.status !== 0) {
