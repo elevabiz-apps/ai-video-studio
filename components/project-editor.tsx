@@ -57,17 +57,52 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   async function uploadVideo(file: File) {
     setUploading(true);
     setUploadError(null);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("projectId", project.id);
 
     try {
-      const res = await fetch("/api/upload-video", { method: "POST", body: formData });
-      if (res.ok) {
-        await refreshProject();
+      // Step 1: Ask server for an upload URL (Supabase signed URL in prod, direct in local)
+      const urlRes = await fetch("/api/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, filename: file.name }),
+      });
+      if (!urlRes.ok) {
+        const err = await urlRes.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${urlRes.status} al obtener URL de upload`);
+      }
+      const urlData = await urlRes.json();
+
+      if (urlData.mode === "supabase") {
+        // Step 2a: Upload directly to Supabase Storage (bypasses Railway proxy entirely)
+        const uploadRes = await fetch(urlData.signedUrl, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": file.type || "video/mp4" },
+        });
+        if (!uploadRes.ok) {
+          throw new Error(`Error ${uploadRes.status} al subir a Supabase Storage`);
+        }
+
+        // Step 3a: Notify server that upload is complete
+        const completeRes = await fetch("/api/upload-complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: project.id, storagePath: urlData.storagePath }),
+        });
+        if (!completeRes.ok) throw new Error("Error al registrar el video");
+        const updated = await completeRes.json();
+        setProject(updated);
+
       } else {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        setUploadError(err.error || `Error ${res.status}`);
+        // Step 2b: Local dev — use the legacy direct upload endpoint
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("projectId", project.id);
+        const res = await fetch("/api/upload-video", { method: "POST", body: formData });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Error ${res.status}`);
+        }
+        await refreshProject();
       }
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Error de red al subir el video");

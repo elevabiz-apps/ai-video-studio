@@ -18,6 +18,7 @@ import {
 import { segmentCaptions } from "./clip-segmenter";
 import { smartClipVideo } from "./smart-clipper";
 import { burnSubtitles } from "./subtitle-burner";
+import { isSupabasePath, fromDbPath, downloadToBuffer } from "./storage";
 
 const CWD = process.cwd();
 // FFMPEG_PATH env var overrides the bundled macOS binary (used on Railway/Linux)
@@ -87,13 +88,34 @@ async function runBasePipeline(
   // Always use the original video — save it on first run and reuse it on re-runs.
   // This prevents re-processing an already-processed file (which creates _procesado_procesado_... chains).
   const project = await getProjectById(projectId);
+  const assetsDir = path.join(CWD, "public", "assets");
+  const publicDir = path.join(CWD, "public");
+
+  // ── Download from Supabase Storage if needed ──────────────────────────────
+  // When source_video is a "supabase:..." path, download it to local disk first.
+  let resolvedSourceRelative = sourceVideoRelative;
+  if (isSupabasePath(sourceVideoRelative)) {
+    await updateJob("processing", 2, "Descargando video...");
+    const storagePath = fromDbPath(sourceVideoRelative);
+    const filename = path.basename(storagePath);
+    const localPath = path.join(assetsDir, filename);
+    if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
+    if (!fs.existsSync(localPath)) {
+      const buffer = await downloadToBuffer(storagePath);
+      fs.writeFileSync(localPath, buffer);
+    }
+    resolvedSourceRelative = `assets/${filename}`;
+    await updateProjectField(projectId, { source_video: resolvedSourceRelative });
+  }
+  sourceVideoRelative = resolvedSourceRelative;
+
   if (!project?.original_video) {
     await updateProjectField(projectId, { original_video: sourceVideoRelative });
   }
-  const originalRelative = project?.original_video ?? sourceVideoRelative;
+  const originalRelative = project?.original_video
+    ? (isSupabasePath(project.original_video) ? sourceVideoRelative : project.original_video)
+    : sourceVideoRelative;
   const videoPath = path.join(CWD, "public", originalRelative);
-  const assetsDir = path.join(CWD, "public", "assets");
-  const publicDir = path.join(CWD, "public");
 
   // Step 1: Analyze original video
   await updateJob("processing", 5, "Analizando video...");
