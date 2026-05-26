@@ -33,6 +33,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   const [captionPreset, setCaptionPreset] = useState(initialProject.caption_preset || "bold");
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [jobStep, setJobStep] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,15 +56,24 @@ export default function ProjectEditor({ project: initialProject, renders: initia
 
   async function uploadVideo(file: File) {
     setUploading(true);
+    setUploadError(null);
     const formData = new FormData();
     formData.append("file", file);
     formData.append("projectId", project.id);
 
-    const res = await fetch("/api/upload-video", { method: "POST", body: formData });
-    if (res.ok) {
-      await refreshProject();
+    try {
+      const res = await fetch("/api/upload-video", { method: "POST", body: formData });
+      if (res.ok) {
+        await refreshProject();
+      } else {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setUploadError(err.error || `Error ${res.status}`);
+      }
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Error de red al subir el video");
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   }
 
   async function runPipeline() {
@@ -195,6 +205,11 @@ export default function ProjectEditor({ project: initialProject, renders: initia
             title="Subir video"
             done={hasVideo}
           >
+            {uploadError && (
+              <div style={{ color: "red", fontSize: 13, marginBottom: 8, padding: "8px 12px", background: "rgba(255,0,0,0.08)", borderRadius: 6 }}>
+                ⚠️ {uploadError}
+              </div>
+            )}
             {!hasVideo ? (
               <div
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}

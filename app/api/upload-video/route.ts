@@ -1,13 +1,14 @@
 export const dynamic = "force-dynamic";
+// Allow large video uploads (up to 500MB)
+export const maxDuration = 300;
+// Next.js App Router body size limit (overrides the default 4MB)
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from "next/server";
 import { getProjectById, updateProjectField } from "@/lib/db-async";
 import { writeFile } from "fs/promises";
 import path from "path";
 import fs from "fs";
-
-export const config = {
-  api: { bodyParser: false },
-};
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
