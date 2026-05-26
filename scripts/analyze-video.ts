@@ -14,7 +14,12 @@ if (!inputPath) {
   process.exit(1);
 }
 
+import fs from "fs";
+
 console.log(`Analyzing: ${inputPath}`);
+console.log(`  File exists: ${fs.existsSync(inputPath)}`);
+console.log(`  FFPROBE_PATH env: ${process.env.FFPROBE_PATH ?? "(not set)"}`);
+console.log(`  Node CWD: ${process.cwd()}`);
 
 // Use FFPROBE_PATH env var (set on Railway) or fall back to the bundled macOS binary for local dev
 const compositorDir = path.join(process.cwd(), "node_modules", "@remotion", "compositor-darwin-arm64");

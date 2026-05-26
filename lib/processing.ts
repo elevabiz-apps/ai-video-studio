@@ -37,15 +37,22 @@ function runScript(
       stdio: ["ignore", "pipe", "pipe"],
     });
 
+    const scriptName = path.basename(scriptPath);
     proc.stdout.on("data", (chunk: Buffer) => {
-      chunk.toString().split("\n").filter(Boolean).forEach((l) => onOutput?.(l));
+      chunk.toString().split("\n").filter(Boolean).forEach((l) => {
+        console.log(`[${scriptName}] ${l}`);
+        onOutput?.(l);
+      });
     });
     proc.stderr.on("data", (chunk: Buffer) => {
-      chunk.toString().split("\n").filter(Boolean).forEach((l) => onOutput?.(l));
+      chunk.toString().split("\n").filter(Boolean).forEach((l) => {
+        console.error(`[${scriptName} stderr] ${l}`);
+        onOutput?.(l);
+      });
     });
     proc.on("close", (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`Script ${path.basename(scriptPath)} exited with code ${code}`));
+      else reject(new Error(`Script ${scriptName} exited with code ${code}`));
     });
     proc.on("error", reject);
   });
