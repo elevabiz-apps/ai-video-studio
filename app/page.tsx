@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { projectQueries } from "@/lib/db";
 import type { Project } from "@/lib/db";
 import NewProjectButton from "@/components/new-project-button";

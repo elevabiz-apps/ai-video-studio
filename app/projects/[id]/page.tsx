@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { projectQueries, renderQueries, clipQueries } from "@/lib/db";
 import { notFound } from "next/navigation";
 import type { Project, Render, Clip } from "@/lib/db";
