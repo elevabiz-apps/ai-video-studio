@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Project, Render, Clip } from "@/lib/db";
@@ -20,6 +20,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   const router = useRouter();
   const [project, setProject] = useState(initialProject);
   const [renders, setRenders] = useState(initialRenders);
+
   const [clips, setClips] = useState(initialClips);
   const [deletingProject, setDeletingProject] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -165,6 +166,18 @@ export default function ProjectEditor({ project: initialProject, renders: initia
       }
     }, 1500);
   }
+
+  // On mount: resume polling for renders that were already in-progress.
+  // Without this, a page refresh while a render is running leaves the UI
+  // stuck at "Renderizando..." forever — the polling interval is lost on reload.
+  useEffect(() => {
+    for (const r of initialRenders) {
+      if (r.status === "rendering" || r.status === "queued") {
+        pollRender(r.id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onPipelineComplete() {
     setPipelineDone(true);

@@ -84,14 +84,23 @@ export async function spawnRender(
     }
 
     // ── 4. Done ─────────────────────────────────────────────────────────────
+    console.log(`[render] checking output file: ${outputAbsPath}`);
     if (fs.existsSync(outputAbsPath)) {
+      const stat = fs.statSync(outputAbsPath);
+      console.log(`[render] output file exists, size=${stat.size} bytes`);
       await updateRender(renderId, "complete", 100, outputRelative);
+      console.log(`[render] ✓ marked complete: ${outputRelative}`);
     } else {
-      throw new Error("Output file not found after render");
+      throw new Error(`Output file not found: ${outputAbsPath}`);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await updateRender(renderId, "failed", 0, undefined, msg);
+    console.error(`[render] ERROR: ${msg}`);
+    try {
+      await updateRender(renderId, "failed", 0, undefined, msg);
+    } catch (dbErr) {
+      console.error(`[render] DB update to 'failed' also failed:`, dbErr);
+    }
     throw err;
   }
 }
