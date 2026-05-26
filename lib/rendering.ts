@@ -175,11 +175,12 @@ function runSubtitleBurn(
     proc.stdout.on("data", onData);
     proc.stderr.on("data", onData);
 
+    // IMPORTANT: await onProgress before resolve() so the "rendering,95" DB write
+    // can't race against (and overwrite) the caller's "complete,100" DB write.
     proc.on("close", (code) => {
       clearTimeout(timeoutId);
       if (code === 0) {
-        onProgress(1);
-        resolve();
+        onProgress(1).then(() => resolve()).catch(() => resolve());
       } else {
         reject(new Error(`burn-subtitles.py exited with code ${code}`));
       }
