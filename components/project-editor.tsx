@@ -666,7 +666,7 @@ function RenderStatus({ render }: { render: Render }) {
   if (render.status === "complete") {
     return (
       <a
-        href={`/${render.output_path}`}
+        href={`/api/${render.output_path}`}
         download
         style={{ fontSize: 12, color: "var(--success)", textDecoration: "none", fontWeight: 600 }}
       >
