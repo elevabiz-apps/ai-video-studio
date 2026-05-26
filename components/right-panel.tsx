@@ -151,7 +151,7 @@ export default function RightPanel({
           {selectedClip.output_path ? (
             <video
               key={selectedClip.id}
-              src={`/${selectedClip.output_path}`}
+              src={`/api/${selectedClip.output_path}`}
               controls
               style={{
                 width: "100%",
@@ -363,7 +363,7 @@ function ClipInfoCard({ clip }: { clip: Clip }) {
       )}
       {clip.output_path && (
         <a
-          href={`/${clip.output_path}`}
+          href={`/api/${clip.output_path}`}
           download
           style={{
             display: "inline-flex",

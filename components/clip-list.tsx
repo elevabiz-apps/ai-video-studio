@@ -190,7 +190,7 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
               <div style={{ flexShrink: 0, paddingTop: 2 }}>
                 {isCut ? (
                   <a
-                    href={`/${clip.output_path}`}
+                    href={`/api/${clip.output_path}`}
                     download
                     style={{
                       background: "var(--accent)",
