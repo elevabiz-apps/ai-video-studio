@@ -1,28 +1,25 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getProjectById } from "@/lib/db-async";
-import { createSignedUploadUrl } from "@/lib/storage";
-import { hasSupabase } from "@/lib/supabase-client";
 import path from "path";
 
 export async function POST(req: NextRequest) {
-  const { projectId, filename } = await req.json();
+  try {
+    const { filename } = await req.json();
 
-  if (!projectId || !filename) {
-    return NextResponse.json({ error: "Missing projectId or filename" }, { status: 400 });
+    if (!filename) {
+      return NextResponse.json({ error: "Missing filename" }, { status: 400 });
+    }
+
+    // Sanitize filename
+    const ext = path.extname(filename);
+    const baseName = path.basename(filename, ext).replace(/[^a-zA-Z0-9_\-. ]/g, "_");
+    const sanitizedFilename = `${baseName}${ext}`;
+
+    // Always use chunked direct upload — no Supabase Storage needed
+    return NextResponse.json({ mode: "direct", filename: sanitizedFilename });
+  } catch (err) {
+    console.error("[upload-url]", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
-
-  const project = await getProjectById(projectId);
-  if (!project) {
-    return NextResponse.json({ error: "Project not found" }, { status: 404 });
-  }
-
-  // Sanitize filename
-  const ext = path.extname(filename);
-  const baseName = path.basename(filename, ext).replace(/[^a-zA-Z0-9_\-. ]/g, "_");
-  const sanitizedFilename = `${baseName}${ext}`;
-
-  // Always use chunked direct upload (bypasses proxy limits, no Supabase Storage size limits)
-  return NextResponse.json({ mode: "direct", filename: sanitizedFilename });
 }
