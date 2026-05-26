@@ -34,6 +34,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [jobStep, setJobStep] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +58,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   async function uploadVideo(file: File) {
     setUploading(true);
     setUploadError(null);
+    setUploadProgress(0);
 
     try {
       // Step 1: Ask server for an upload URL (Supabase signed URL in prod, direct in local)
@@ -72,15 +74,23 @@ export default function ProjectEditor({ project: initialProject, renders: initia
       const urlData = await urlRes.json();
 
       if (urlData.mode === "supabase") {
-        // Step 2a: Upload directly to Supabase Storage (bypasses Railway proxy entirely)
-        const uploadRes = await fetch(urlData.signedUrl, {
-          method: "PUT",
-          body: file,
-          headers: { "Content-Type": file.type || "video/mp4" },
+        // Step 2a: Upload directly to Supabase Storage via XHR (supports progress + no proxy limit)
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", urlData.signedUrl);
+          xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(`Supabase Storage error ${xhr.status}: ${xhr.responseText}`));
+          };
+          xhr.onerror = () => reject(new Error("Error de red al subir a Supabase"));
+          xhr.ontimeout = () => reject(new Error("Timeout al subir el video"));
+          xhr.timeout = 300000; // 5 minutes
+          xhr.send(file);
         });
-        if (!uploadRes.ok) {
-          throw new Error(`Error ${uploadRes.status} al subir a Supabase Storage`);
-        }
 
         // Step 3a: Notify server that upload is complete
         const completeRes = await fetch("/api/upload-complete", {
@@ -263,8 +273,13 @@ export default function ProjectEditor({ project: initialProject, renders: initia
               >
                 <div style={{ fontSize: 32, marginBottom: 8 }}>🎬</div>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-                  {uploading ? "Subiendo..." : "Arrastrá tu video aquí"}
+                  {uploading ? `Subiendo... ${uploadProgress > 0 ? uploadProgress + "%" : ""}` : "Arrastrá tu video aquí"}
                 </div>
+                {uploading && uploadProgress > 0 && (
+                  <div style={{ width: "100%", height: 4, background: "var(--border)", borderRadius: 2, margin: "6px 0" }}>
+                    <div style={{ width: `${uploadProgress}%`, height: "100%", background: "var(--accent)", borderRadius: 2, transition: "width 0.3s" }} />
+                  </div>
+                )}
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
                   o hacé click para seleccionar
                 </div>
