@@ -1,6 +1,12 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { projectQueries, renderQueries, clipQueries } from "@/lib/db";
+import {
+  getProjectById,
+  updateProjectField,
+  deleteProject,
+  getRendersByProject,
+  getClipsByProject,
+} from "@/lib/db-async";
 import fs from "fs";
 import path from "path";
 
@@ -9,7 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = projectQueries.getById.get(id);
+  const project = await getProjectById(id);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(project);
 }
@@ -19,13 +25,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = projectQueries.getById.get(id);
+  const project = await getProjectById(id);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json();
-  projectQueries.updateField(id, body);
+  await updateProjectField(id, body);
 
-  const updated = projectQueries.getById.get(id);
+  const updated = await getProjectById(id);
   return NextResponse.json(updated);
 }
 
@@ -35,13 +41,13 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  const project = projectQueries.getById.get(id);
+  const project = await getProjectById(id);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const publicDir = path.join(process.cwd(), "public");
 
   // Delete render files
-  const renders = renderQueries.getByProject.all(id);
+  const renders = await getRendersByProject(id);
   for (const render of renders) {
     if (render.output_path) {
       try { fs.unlinkSync(path.join(publicDir, render.output_path)); } catch { /* ignore */ }
@@ -49,7 +55,7 @@ export async function DELETE(
   }
 
   // Delete clip files
-  const clips = clipQueries.getByProject.all(id);
+  const clips = await getClipsByProject(id);
   for (const clip of clips) {
     if (clip.output_path) {
       try { fs.unlinkSync(path.join(publicDir, clip.output_path)); } catch { /* ignore */ }
@@ -67,7 +73,7 @@ export async function DELETE(
   }
 
   // Delete all DB records (clips/renders cascade via FK, jobs cascade too)
-  projectQueries.delete.run(id);
+  await deleteProject(id);
 
   return NextResponse.json({ success: true });
 }

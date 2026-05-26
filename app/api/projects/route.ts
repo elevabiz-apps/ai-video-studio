@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { projectQueries } from "@/lib/db";
+import { getAllProjects, createProject, getProjectById } from "@/lib/db-async";
 import { randomUUID } from "crypto";
 
 export async function GET() {
-  const projects = projectQueries.getAll.all();
+  const projects = await getAllProjects();
   return NextResponse.json(projects);
 }
 
@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
   }
 
   const id = randomUUID();
-  projectQueries.create.run(id, name.trim(), mode);
+  await createProject(id, name.trim(), mode);
 
-  const project = projectQueries.getById.get(id);
+  const project = await getProjectById(id);
   return NextResponse.json(project, { status: 201 });
 }

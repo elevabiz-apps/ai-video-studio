@@ -2,7 +2,19 @@ import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
-import { jobQueries, projectQueries, clipQueries } from "./db";
+import {
+  getProjectById,
+  updateProjectField,
+  updateJobStatus,
+  setJobResult,
+  createClip,
+  updateClipName,
+  updateClipSortOrder,
+  updateClipHookPhrase,
+  updateClipScore,
+  updateClipOutputPath,
+  deleteClipsByProject,
+} from "./db-async";
 import { segmentCaptions } from "./clip-segmenter";
 import { smartClipVideo } from "./smart-clipper";
 import { burnSubtitles } from "./subtitle-burner";
@@ -70,13 +82,13 @@ async function runBasePipeline(
     progress: number,
     step: string,
     error?: string
-  ) => void
+  ) => Promise<void>
 ): Promise<{ captionsJson: string | null; processedVideoPath: string }> {
   // Always use the original video — save it on first run and reuse it on re-runs.
   // This prevents re-processing an already-processed file (which creates _procesado_procesado_... chains).
-  const project = projectQueries.getById.get(projectId);
+  const project = await getProjectById(projectId);
   if (!project?.original_video) {
-    projectQueries.updateField(projectId, { original_video: sourceVideoRelative });
+    await updateProjectField(projectId, { original_video: sourceVideoRelative });
   }
   const originalRelative = project?.original_video ?? sourceVideoRelative;
   const videoPath = path.join(CWD, "public", originalRelative);
@@ -84,15 +96,15 @@ async function runBasePipeline(
   const publicDir = path.join(CWD, "public");
 
   // Step 1: Analyze original video
-  updateJob("processing", 5, "Analizando video...");
+  await updateJob("processing", 5, "Analizando video...");
   await runScript("scripts/analyze-video.ts", [videoPath]);
 
   // Step 2: Detect silence in original video
-  updateJob("processing", 18, "Detectando silencios...");
+  await updateJob("processing", 18, "Detectando silencios...");
   await runScript("scripts/detect-silence.ts", [videoPath]);
 
   // Step 3: Cut silences → produce a processed video
-  updateJob("processing", 32, "Cortando silencios...");
+  await updateJob("processing", 32, "Cortando silencios...");
   const ext = path.extname(sourceVideoRelative);
   const baseName = path.basename(sourceVideoRelative, ext);
   const processedFileName = `${baseName}_procesado.mp4`;
@@ -100,19 +112,19 @@ async function runBasePipeline(
   const processedVideoRelative = `assets/${processedFileName}`;
 
   await cutSilences(videoPath, processedVideoPath);
-  projectQueries.updateField(projectId, { source_video: processedVideoRelative });
+  await updateProjectField(projectId, { source_video: processedVideoRelative });
 
   // Step 4: Extract audio from the PROCESSED video (ensures sync with what's displayed)
-  updateJob("processing", 50, "Extrayendo audio...");
+  await updateJob("processing", 50, "Extrayendo audio...");
   await runScript("scripts/extract-audio.ts", [processedVideoPath]);
 
   // Step 5: Transcribe
-  updateJob("processing", 65, "Transcribiendo con Whisper...");
+  await updateJob("processing", 65, "Transcribiendo con Whisper...");
   const audioPath = path.join(assetsDir, "audio.wav");
   await runScript("scripts/transcribe.ts", [audioPath]);
 
   // Step 6: Save results to DB
-  updateJob("processing", 85, "Guardando resultados...");
+  await updateJob("processing", 85, "Guardando resultados...");
 
   const captionsPath = path.join(publicDir, "captions.json");
   const metadataPath = path.join(publicDir, "video-metadata.json");
@@ -137,7 +149,7 @@ async function runBasePipeline(
     ? fs.readFileSync(silencePath, "utf-8")
     : null;
 
-  projectQueries.updateField(projectId, {
+  await updateProjectField(projectId, {
     captions: captionsJson,
     silence_data: processedSilence,
     duration_seconds: durationSeconds,
@@ -155,13 +167,13 @@ export async function spawnPipeline(
   projectId: string,
   sourceVideoRelative: string
 ): Promise<void> {
-  function updateJob(
+  async function updateJob(
     status: "processing" | "complete" | "failed",
     progress: number,
     step: string,
     error?: string
   ) {
-    jobQueries.updateStatus.run(status, progress, step, error ?? null, jobId);
+    await updateJobStatus(jobId, status, progress, step, error ?? null);
   }
 
   try {
@@ -172,16 +184,12 @@ export async function spawnPipeline(
       updateJob
     );
 
-    projectQueries.updateField(projectId, { status: "ready" });
-
-    jobQueries.setResult.run(
-      JSON.stringify({ hasCaptions: !!captionsJson }),
-      jobId
-    );
+    await updateProjectField(projectId, { status: "ready" });
+    await setJobResult(jobId, JSON.stringify({ hasCaptions: !!captionsJson }));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    updateJob("failed", 0, "Error", message);
-    projectQueries.updateField(projectId, { status: "draft" });
+    await updateJob("failed", 0, "Error", message);
+    await updateProjectField(projectId, { status: "draft" });
     throw err;
   }
 }
@@ -320,13 +328,13 @@ export async function spawnMultiClipPipeline(
   projectId: string,
   sourceVideoRelative: string
 ): Promise<void> {
-  function updateJob(
+  async function updateJob(
     status: "processing" | "complete" | "failed",
     progress: number,
     step: string,
     error?: string
   ) {
-    jobQueries.updateStatus.run(status, progress, step, error ?? null, jobId);
+    await updateJobStatus(jobId, status, progress, step, error ?? null);
   }
 
   try {
@@ -355,13 +363,13 @@ export async function spawnMultiClipPipeline(
 
     if (isHorizontal) {
       // Detect face position before reframing
-      updateJob("processing", 86, "Detectando posición del rostro...");
+      await updateJob("processing", 86, "Detectando posición del rostro...");
       const faceResult = await detectFaceCenter(processedVideoPath);
 
       if (faceResult?.cropX !== undefined) {
-        updateJob("processing", 87, "Reencuadrando a vertical centrado en rostro...");
+        await updateJob("processing", 87, "Reencuadrando a vertical centrado en rostro...");
       } else {
-        updateJob("processing", 87, "Reencuadrando a vertical (9:16)...");
+        await updateJob("processing", 87, "Reencuadrando a vertical (9:16)...");
       }
 
       const verticalFileName =
@@ -377,11 +385,10 @@ export async function spawnMultiClipPipeline(
       );
 
       finalVideoPath = verticalAbsPath;
-      projectQueries.updateField(projectId, { source_video: verticalRelPath });
+      await updateProjectField(projectId, { source_video: verticalRelPath });
     }
 
     // Step 8: Identify clip boundaries — smart (Claude) or fallback (pauses)
-    // Check API key — also fallback to reading .env.local directly
     let hasApiKey = !!process.env.ANTHROPIC_API_KEY?.trim();
     if (!hasApiKey) {
       try {
@@ -395,12 +402,11 @@ export async function spawnMultiClipPipeline(
     let segments: { startMs: number; endMs: number; hook?: string; reason?: string; score?: number }[] = [];
 
     if (hasApiKey) {
-      updateJob("processing", 89, "Analizando contenido con IA...");
+      await updateJob("processing", 89, "Analizando contenido con IA...");
       try {
         const captions = JSON.parse(captionsJson);
         const smartClips = await smartClipVideo(captions);
         if (smartClips.length > 0) {
-          // Sort by score descending so best clips appear first
           const sorted = [...smartClips].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
           segments = sorted.map((c) => ({
             startMs: c.start_ms,
@@ -420,7 +426,7 @@ export async function spawnMultiClipPipeline(
 
     // Fallback: pause-based segmentation
     if (segments.length === 0) {
-      updateJob("processing", 89, "Segmentando clips...");
+      await updateJob("processing", 89, "Segmentando clips...");
       try {
         const captions = JSON.parse(captionsJson);
         const paused = segmentCaptions(captions);
@@ -433,7 +439,7 @@ export async function spawnMultiClipPipeline(
       }
     }
 
-    clipQueries.deleteByProject.run(projectId); // clear clips from any previous run
+    await deleteClipsByProject(projectId); // clear clips from any previous run
 
     // Step 9: Cut each clip from the (possibly reframed) processed video
     const finalBaseName = path.basename(finalVideoPath, ".mp4");
@@ -441,11 +447,7 @@ export async function spawnMultiClipPipeline(
 
     for (let i = 0; i < segments.length; i++) {
       const progressPct = 92 + Math.round(((i + 1) / segments.length) * 7);
-      updateJob(
-        "processing",
-        progressPct,
-        `Cortando clip ${i + 1} de ${segments.length}...`
-      );
+      await updateJob("processing", progressPct, `Cortando clip ${i + 1} de ${segments.length}...`);
 
       const clipId = randomUUID();
       const startSec = segments[i].startMs / 1000;
@@ -454,14 +456,13 @@ export async function spawnMultiClipPipeline(
       const reason = segments[i].reason;
 
       // Register clip in DB
-      clipQueries.create.run(clipId, projectId, startSec, endSec);
-      clipQueries.updateName.run(hook ?? `Clip ${i + 1}`, clipId);
-      clipQueries.updateSortOrder.run(i, clipId);
-      if (hook) clipQueries.updateHookPhrase.run(hook, clipId);
-      // Store real AI score (0-100) and reasoning
+      await createClip(clipId, projectId, startSec, endSec);
+      await updateClipName(clipId, hook ?? `Clip ${i + 1}`);
+      await updateClipSortOrder(clipId, i);
+      if (hook) await updateClipHookPhrase(clipId, hook);
       const clipScore = segments[i].score ?? 0;
       if (reason || segments[i].score !== undefined) {
-        clipQueries.updateScore.run(clipScore, reason ?? "", clipId);
+        await updateClipScore(clipId, clipScore, reason ?? "");
       }
 
       // Cut physical file from the final (vertical) video
@@ -471,9 +472,7 @@ export async function spawnMultiClipPipeline(
 
       try {
         await cutClip(finalVideoPath, clipAbsPath, startSec, endSec);
-
-        // Set output_path immediately after cut — clip is downloadable even without subtitles
-        clipQueries.updateOutputPath.run(clipRelPath, clipId);
+        await updateClipOutputPath(clipId, clipRelPath);
 
         // Burn subtitles (non-fatal — replaces clip in-place on success)
         if (captionsJson) {
@@ -484,16 +483,12 @@ export async function spawnMultiClipPipeline(
       }
     }
 
-    projectQueries.updateField(projectId, { status: "ready" });
-
-    jobQueries.setResult.run(
-      JSON.stringify({ hasCaptions: true, clipCount: segments.length }),
-      jobId
-    );
+    await updateProjectField(projectId, { status: "ready" });
+    await setJobResult(jobId, JSON.stringify({ hasCaptions: true, clipCount: segments.length }));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    updateJob("failed", 0, "Error", message);
-    projectQueries.updateField(projectId, { status: "draft" });
+    await updateJob("failed", 0, "Error", message);
+    await updateProjectField(projectId, { status: "draft" });
     throw err;
   }
 }

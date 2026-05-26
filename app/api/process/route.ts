@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { projectQueries, jobQueries } from "@/lib/db";
+import { getProjectById, updateProjectField, getLatestJobByProject, createJob } from "@/lib/db-async";
 import { randomUUID } from "crypto";
 import { spawnPipeline, spawnMultiClipPipeline } from "@/lib/processing";
 
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing projectId" }, { status: 400 });
   }
 
-  const project = projectQueries.getById.get(projectId);
+  const project = await getProjectById(projectId);
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Guard: reject if a pipeline job is already running for this project
-  const existingJob = jobQueries.getLatestByProject.get(projectId);
+  const existingJob = await getLatestJobByProject(projectId);
   if (existingJob && existingJob.status === "processing") {
     return NextResponse.json(
       { error: "Ya hay un pipeline corriendo para este proyecto", jobId: existingJob.id },
@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
 
   // Create a job
   const jobId = randomUUID();
-  jobQueries.create.run(jobId, "pipeline", projectId);
+  await createJob(jobId, "pipeline", projectId);
 
   // Update project status
-  projectQueries.updateField(projectId, { status: "processing" });
+  await updateProjectField(projectId, { status: "processing" });
 
   // Spawn pipeline in background (non-blocking) — choose based on project mode
   const pipeline =

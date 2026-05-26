@@ -31,6 +31,7 @@
     "@remotion/player": "4.0.440",
     "@remotion/shapes": "4.0.440",
     "@remotion/transitions": "4.0.440",
+    "@supabase/supabase-js": "^2.106.2",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^12.8.0",

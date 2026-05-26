@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { projectQueries } from "@/lib/db";
+import { getProjectById, updateProjectField } from "@/lib/db-async";
 import { writeFile } from "fs/promises";
 import path from "path";
 import fs from "fs";
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing file or projectId" }, { status: 400 });
   }
 
-  const project = projectQueries.getById.get(projectId);
+  const project = await getProjectById(projectId);
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   // Update project
   const relativePath = `assets/${fileName}`;
-  projectQueries.updateField(projectId, {
+  await updateProjectField(projectId, {
     source_video: relativePath,
     status: "draft",
   });

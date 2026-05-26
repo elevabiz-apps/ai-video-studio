@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import type { Project, Clip } from "./db";
-import db from "./db";
+import { updateRender as updateRenderDb } from "./db-async";
 
 const CWD = process.cwd();
 // FFMPEG_PATH env var overrides the bundled macOS binary (used on Railway/Linux)
@@ -11,16 +11,14 @@ const COMPOSITOR_DIR = path.join(CWD, "node_modules", "@remotion", "compositor-d
 const FFMPEG_BIN = process.env.FFMPEG_PATH ?? path.join(COMPOSITOR_DIR, "ffmpeg");
 const BURN_SCRIPT = path.join(CWD, "scripts", "burn-subtitles.py");
 
-function updateRender(
+async function updateRender(
   renderId: string,
   status: string,
   progress: number,
   outputPath?: string,
   error?: string
 ) {
-  db.prepare(
-    "UPDATE renders SET status = ?, progress = ?, output_path = ?, error = ? WHERE id = ?"
-  ).run(status, progress, outputPath ?? null, error ?? null, renderId);
+  await updateRenderDb(renderId, status, progress, outputPath ?? null);
 }
 
 /**
@@ -52,7 +50,7 @@ export async function spawnRender(
     fs.mkdirSync(rendersDir, { recursive: true });
   }
 
-  updateRender(renderId, "rendering", 5);
+  await updateRender(renderId, "rendering", 5);
 
   try {
     // ── 1. Resolve source video ─────────────────────────────────────────────
@@ -60,10 +58,9 @@ export async function spawnRender(
     const sourceAbs = path.join(CWD, "public", project.source_video);
 
     // ── 2. Copy source → output location ───────────────────────────────────
-    // Use ffmpeg copy so the file is in a clean MP4 container
-    updateRender(renderId, "rendering", 10);
+    await updateRender(renderId, "rendering", 10);
     await runFfmpegCopy(sourceAbs, outputAbsPath);
-    updateRender(renderId, "rendering", 20);
+    await updateRender(renderId, "rendering", 20);
 
     // ── 3. Burn subtitles if captions exist ─────────────────────────────────
     if (project.captions) {
@@ -80,7 +77,7 @@ export async function spawnRender(
         startMs,
         endMs,
         captionPreset,
-        (pct) => updateRender(renderId, "rendering", 20 + Math.round(pct * 0.75))
+        async (pct) => await updateRender(renderId, "rendering", 20 + Math.round(pct * 0.75))
       );
 
       try { fs.unlinkSync(tmpCaptions); } catch { /* ignore */ }
@@ -88,13 +85,13 @@ export async function spawnRender(
 
     // ── 4. Done ─────────────────────────────────────────────────────────────
     if (fs.existsSync(outputAbsPath)) {
-      updateRender(renderId, "complete", 100, outputRelative);
+      await updateRender(renderId, "complete", 100, outputRelative);
     } else {
       throw new Error("Output file not found after render");
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    updateRender(renderId, "failed", 0, undefined, msg);
+    await updateRender(renderId, "failed", 0, undefined, msg);
     throw err;
   }
 }
@@ -117,7 +114,7 @@ function runSubtitleBurn(
   startMs: number,
   endMs: number,
   captionPreset: string,
-  onProgress: (pct: number) => void
+  onProgress: (pct: number) => void | Promise<void>
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(

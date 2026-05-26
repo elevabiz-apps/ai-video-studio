@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import { projectQueries } from "@/lib/db";
+import { getAllProjects } from "@/lib/db-async";
 import type { Project } from "@/lib/db";
 import NewProjectButton from "@/components/new-project-button";
 import ProjectCard from "@/components/project-card";
 
-export default function DashboardPage() {
-  const projects = projectQueries.getAll.all() as Project[];
+export default async function DashboardPage() {
+  const projects = await getAllProjects() as Project[];
 
   return (
     <div style={{ padding: 40 }}>
