@@ -108,6 +108,8 @@ function runFfmpegCopy(input: string, output: string): Promise<void> {
   }
 }
 
+const RENDER_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes — kill if ffmpeg hangs
+
 function runSubtitleBurn(
   clipPath: string,
   captionsPath: string,
@@ -127,8 +129,8 @@ function runSubtitleBurn(
         String(endMs),
         FFMPEG_BIN,
         COMPOSITOR_DIR,
-        "0",    // offset_ms: 0 = no delay, subtitles sync exactly with audio
-        captionPreset,  // preset: bold | classic | outline | glow | box
+        "0",          // offset_ms
+        captionPreset,
       ],
       {
         cwd: CWD,
@@ -137,31 +139,27 @@ function runSubtitleBurn(
       }
     );
 
-    // Parse progress from the Python script output
-    let totalFrames = 0;
+    // Safety timeout — if ffmpeg hangs (e.g. libass/fontconfig deadlock) this
+    // kills the whole subprocess tree and surfaces a clear error.
+    const timeoutId = setTimeout(() => {
+      console.error("[render] burn-subtitles.py timed out — killing process");
+      proc.kill("SIGKILL");
+      reject(new Error("burn-subtitles.py timed out after 10 minutes"));
+    }, RENDER_TIMEOUT_MS);
+
+    // Read stdout/stderr from Python WITHOUT writing to process.stderr.
+    // process.stderr.write() is SYNCHRONOUS/BLOCKING in Node.js when stderr is a
+    // pipe (as it is on Railway).  Forwarding every ffmpeg progress line blocks
+    // the event loop, which stops the pipe from being drained, which blocks Python,
+    // which blocks ffmpeg → permanent deadlock.
+    // We only console.log the `[subtitles]` diagnostic lines from Python itself.
     const onData = (chunk: Buffer) => {
       const text = chunk.toString();
-      process.stderr.write(text);
-
-      // "843 frames" from header line → set total
-      const totalMatch = text.match(/·\s*(\d+)\s+frames/);
-      if (totalMatch) totalFrames = parseInt(totalMatch[1], 10);
-
-      // "  200/843" frame progress
-      const progressMatch = text.match(/^\s+(\d+)\/(\d+)/m);
-      if (progressMatch) {
-        const done  = parseInt(progressMatch[1], 10);
-        const total = parseInt(progressMatch[2], 10);
-        if (total > 0) onProgress(Math.min(done / total, 0.92));
-      }
-
-      // ffmpeg encode progress: "time=00:00:30" out of total duration
-      const timeMatch = text.match(/time=(\d+):(\d+):(\d+)/);
-      if (timeMatch && totalFrames > 0) {
-        const secs = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + parseInt(timeMatch[3]);
-        // Assume 30fps to estimate progress during final encode (92%→99%)
-        const encodePct = Math.min(secs / (totalFrames / 30), 1);
-        onProgress(0.92 + encodePct * 0.07);
+      // Only forward our own diagnostic lines (not raw ffmpeg frame output)
+      for (const line of text.split("\n")) {
+        if (line.startsWith("[subtitles]") || line.startsWith("[ffmpeg]")) {
+          console.log(line);
+        }
       }
     };
 
@@ -169,6 +167,7 @@ function runSubtitleBurn(
     proc.stderr.on("data", onData);
 
     proc.on("close", (code) => {
+      clearTimeout(timeoutId);
       if (code === 0) {
         onProgress(1);
         resolve();
@@ -176,6 +175,9 @@ function runSubtitleBurn(
         reject(new Error(`burn-subtitles.py exited with code ${code}`));
       }
     });
-    proc.on("error", reject);
+    proc.on("error", (err) => {
+      clearTimeout(timeoutId);
+      reject(err);
+    });
   });
 }

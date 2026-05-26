@@ -161,21 +161,50 @@ PRESET_STYLES = {
 
 st = PRESET_STYLES.get(PRESET, PRESET_STYLES["bold"])
 
-# Detect font available on system
+# Detect font available on system.
+# We store (file_path, font_family_name) pairs — libass needs the FAMILY name
+# (e.g. "DejaVu Sans"), not the filename (e.g. "DejaVuSans-Bold").
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 font_candidates = [
-    os.path.join(SCRIPT_DIR, "fonts", "Inter-Bold.ttf"),
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-    "/Library/Fonts/Arial Bold.ttf",
+    (os.path.join(SCRIPT_DIR, "fonts", "Inter-Bold.ttf"),                    "Inter"),
+    ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",                  "DejaVu Sans"),
+    ("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",          "Liberation Sans"),
+    ("/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",                              "DejaVu Sans"),
+    ("/System/Library/Fonts/Supplemental/Arial Bold.ttf",                     "Arial"),
+    ("/Library/Fonts/Arial Bold.ttf",                                         "Arial"),
 ]
-font_name = "Arial"
-for fp in font_candidates:
+font_name = "DejaVu Sans"  # safe default: installed by Dockerfile's fonts-dejavu-core
+font_file  = None
+for fp, family in font_candidates:
     if os.path.exists(fp):
-        font_name = os.path.splitext(os.path.basename(fp))[0]
+        font_name = family
+        font_file  = fp
         break
+
+# Determine a fonts directory to pass to libass via the fontsdir= filter option.
+# This lets libass find fonts WITHOUT doing a full fontconfig scan (which can hang
+# in headless containers when the fontconfig cache is absent or stale).
+fonts_search_dirs = [
+    os.path.dirname(font_file) if font_file else None,
+    os.path.join(SCRIPT_DIR, "fonts"),
+    "/usr/share/fonts/truetype/dejavu",
+    "/usr/share/fonts/truetype/liberation",
+    "/usr/share/fonts/truetype",
+    "/usr/share/fonts",
+    "/Library/Fonts",
+]
+fontsdir = ""
+for d in fonts_search_dirs:
+    if d and os.path.isdir(d):
+        # Verify the directory actually has font files
+        try:
+            if any(f.endswith((".ttf", ".otf", ".TTF", ".OTF")) for f in os.listdir(d)):
+                fontsdir = d
+                break
+        except OSError:
+            pass
+
+print(f"[subtitles] font={font_name!r}  fontsdir={fontsdir!r}", file=sys.stderr)
 
 # ── Build ASS file ────────────────────────────────────────────────────────────
 
@@ -230,41 +259,60 @@ with open(ass_path, "w", encoding="utf-8") as f:
     f.write(ass_content)
 
 # Escape the ASS path for ffmpeg filter (colons and backslashes need escaping)
-escaped_ass = ass_path.replace("\\", "/").replace(":", "\\:")
+def esc(s: str) -> str:
+    return s.replace("\\", "/").replace(":", "\\:").replace(",", "\\,")
+
+escaped_ass = esc(ass_path)
+
+# Add fontsdir= to tell libass exactly where fonts are, bypassing a full
+# fontconfig scan. fontconfig scanning an empty/uncached dir is a common
+# cause of ffmpeg hanging indefinitely inside headless Docker containers.
+fontsdir_opt = f":fontsdir={esc(fontsdir)}" if fontsdir else ""
+vf_arg = f"ass={escaped_ass}{fontsdir_opt}"
 
 cmd = [
     FFMPEG, "-y",
     "-i", CLIP_PATH,
-    "-vf", f"ass={escaped_ass}",
+    "-vf", vf_arg,
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
     "-c:a", "copy",
     "-pix_fmt", "yuv420p",
     tmp_out,
 ]
 
-print(f"[subtitles] Burning subtitles with ffmpeg ASS filter...", file=sys.stderr)
+print(f"[subtitles] Running ffmpeg ASS filter...", file=sys.stderr)
+sys.stderr.flush()
 
-# Run ffmpeg with explicit stderr pipe so we control the output — avoids pipe
-# inheritance deadlocks when Python's own stdout/stderr are pipes from Node.js.
+# Use communicate() — it drains stdout+stderr into memory and returns only when
+# the process exits.  This is the ONLY safe way to read subprocess output when:
+#  1. The subprocess writes to stderr using \\r (no \\n), which confuses line readers
+#  2. The caller (Node.js) may buffer our stderr pipe, causing a cascading deadlock
+#     if we try to forward every ffmpeg frame line synchronously.
 proc = subprocess.Popen(
     cmd,
     stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
     env={**os.environ},
-    text=True,
 )
-
-for line in proc.stderr:
-    # Forward every ffmpeg line to our stderr so Node.js can read progress
-    sys.stderr.write(line)
-    sys.stderr.flush()
-
-proc.wait()
+_, stderr_bytes = proc.communicate()
 
 if proc.returncode != 0:
+    # Forward the ffmpeg error log so Railway surfaces it
+    err_text = (stderr_bytes or b"").decode("utf-8", errors="replace")
+    # Only print the last 40 lines — ffmpeg error is always at the end
+    tail = "\n".join(err_text.replace("\r", "\n").splitlines()[-40:])
+    print(tail, file=sys.stderr)
     print(f"[subtitles] ffmpeg failed (code {proc.returncode})", file=sys.stderr)
     shutil.rmtree(tmp_dir, ignore_errors=True)
     sys.exit(1)
+
+# Success — print key timing line so Node can log it
+if stderr_bytes:
+    for line in (stderr_bytes.decode("utf-8", errors="replace")
+                 .replace("\r", "\n").splitlines()):
+        if "time=" in line and "speed=" in line:
+            print(f"[subtitles] {line.strip()}", file=sys.stderr)
+            break
 
 shutil.move(tmp_out, CLIP_PATH)
 shutil.rmtree(tmp_dir, ignore_errors=True)
