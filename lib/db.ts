@@ -2,7 +2,10 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 
-const DB_DIR = path.join(process.cwd(), ".studio");
+// DATA_DIR env var points to a Railway Volume mount (e.g. /app/data).
+// Falls back to .studio/ for local development.
+const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), ".studio");
+const DB_DIR = path.join(DATA_DIR, "db");
 const DB_PATH = path.join(DB_DIR, "studio.db");
 
 // Lazy singleton — only connect when first accessed (not at import time).

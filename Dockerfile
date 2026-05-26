@@ -53,9 +53,12 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/start.sh ./start.sh
+RUN chmod +x start.sh
 
-# Create directories for uploads and renders
-RUN mkdir -p public/assets public/renders .studio
+# Placeholder dirs (will be replaced by symlinks to volume on startup)
+RUN mkdir -p public/assets public/renders
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+# start.sh links public/assets + public/renders to the Railway Volume, then starts Node
+CMD ["sh", "start.sh"]
