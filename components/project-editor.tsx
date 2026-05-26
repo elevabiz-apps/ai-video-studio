@@ -61,7 +61,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
     setUploadProgress(0);
 
     try {
-      // Step 1: Ask server for an upload URL (Supabase signed URL in prod, direct in local)
+      // Get sanitized filename from server
       const urlRes = await fetch("/api/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -71,49 +71,60 @@ export default function ProjectEditor({ project: initialProject, renders: initia
         const err = await urlRes.json().catch(() => ({}));
         throw new Error(err.error || `Error ${urlRes.status} al obtener URL de upload`);
       }
-      const urlData = await urlRes.json();
+      const { filename } = await urlRes.json();
 
-      if (urlData.mode === "supabase") {
-        // Step 2a: Upload directly to Supabase Storage via XHR (supports progress + no proxy limit)
+      // Chunked upload: split into 45 MB pieces to stay under proxy limits
+      const CHUNK_SIZE = 45 * 1024 * 1024; // 45 MB
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      const uploadId = crypto.randomUUID();
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
-          xhr.open("PUT", urlData.signedUrl);
-          xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+          xhr.open("POST", "/api/upload-chunk");
           xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+            if (e.lengthComputable) {
+              // Overall progress: completed chunks + current chunk progress
+              const chunkProgress = e.loaded / e.total;
+              const overall = Math.round(((i + chunkProgress) / totalChunks) * 100);
+              setUploadProgress(overall);
+            }
           };
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(`Supabase Storage error ${xhr.status}: ${xhr.responseText}`));
+            else reject(new Error(`Error ${xhr.status} al subir parte ${i + 1}`));
           };
-          xhr.onerror = () => reject(new Error("Error de red al subir a Supabase"));
-          xhr.ontimeout = () => reject(new Error("Timeout al subir el video"));
-          xhr.timeout = 300000; // 5 minutes
-          xhr.send(file);
-        });
+          xhr.onerror = () => reject(new Error(`Error de red al subir parte ${i + 1}`));
+          xhr.ontimeout = () => reject(new Error(`Timeout al subir parte ${i + 1}`));
+          xhr.timeout = 120000; // 2 min per chunk
 
-        // Step 3a: Notify server that upload is complete
-        const completeRes = await fetch("/api/upload-complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectId: project.id, storagePath: urlData.storagePath }),
+          const formData = new FormData();
+          formData.append("chunk", new File([chunk], filename, { type: file.type }));
+          formData.append("uploadId", uploadId);
+          formData.append("chunkIndex", String(i));
+          xhr.send(formData);
         });
-        if (!completeRes.ok) throw new Error("Error al registrar el video");
-        const updated = await completeRes.json();
-        setProject(updated);
-
-      } else {
-        // Step 2b: Local dev — use the legacy direct upload endpoint
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("projectId", project.id);
-        const res = await fetch("/api/upload-video", { method: "POST", body: formData });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `Error ${res.status}`);
-        }
-        await refreshProject();
       }
+
+      setUploadProgress(99);
+
+      // Assemble all chunks on the server
+      const assembleRes = await fetch("/api/upload-assemble", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, uploadId, filename, totalChunks }),
+      });
+      if (!assembleRes.ok) {
+        const err = await assembleRes.json().catch(() => ({}));
+        throw new Error(err.error || "Error al ensamblar el video");
+      }
+      const updated = await assembleRes.json();
+      setProject(updated);
+      setUploadProgress(100);
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Error de red al subir el video");
     } finally {

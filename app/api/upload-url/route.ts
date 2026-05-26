@@ -23,21 +23,6 @@ export async function POST(req: NextRequest) {
   const baseName = path.basename(filename, ext).replace(/[^a-zA-Z0-9_\-. ]/g, "_");
   const sanitizedFilename = `${baseName}${ext}`;
 
-  if (!hasSupabase()) {
-    // Local dev: tell client to use the regular upload endpoint
-    return NextResponse.json({ mode: "direct", filename: sanitizedFilename });
-  }
-
-  try {
-    const { signedUrl, storagePath } = await createSignedUploadUrl(projectId, sanitizedFilename);
-    return NextResponse.json({
-      mode: "supabase",
-      signedUrl,
-      storagePath,
-      filename: sanitizedFilename,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+  // Always use chunked direct upload (bypasses proxy limits, no Supabase Storage size limits)
+  return NextResponse.json({ mode: "direct", filename: sanitizedFilename });
 }
