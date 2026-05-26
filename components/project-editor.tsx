@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Project, Render, Clip } from "@/lib/db";
 import PipelineProgress from "./pipeline-progress";
 import ClipList from "./clip-list";
+import PublishDialog from "./publish-dialog";
 import dynamic from "next/dynamic";
 
 const RightPanel = dynamic(() => import("./right-panel"), { ssr: false });
@@ -35,6 +36,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [publishingRender, setPublishingRender] = useState<Render | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [jobStep, setJobStep] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -519,7 +521,10 @@ export default function ProjectEditor({ project: initialProject, renders: initia
                       </button>
                       {latest && (
                         <div style={{ display: "flex", justifyContent: "center" }}>
-                          <RenderStatus render={latest} />
+                          <RenderStatus
+                            render={latest}
+                            onPublish={latest.status === "complete" ? () => setPublishingRender(latest) : undefined}
+                          />
                         </div>
                       )}
                     </div>
@@ -541,6 +546,16 @@ export default function ProjectEditor({ project: initialProject, renders: initia
         selectedClip={selectedClip}
         isReady={isReady}
       />
+
+      {/* Publish dialog for renders (single mode) */}
+      {publishingRender && (
+        <PublishDialog
+          filePath={publishingRender.output_path!}
+          renderId={publishingRender.id}
+          defaultCaption={project.name}
+          onClose={() => setPublishingRender(null)}
+        />
+      )}
     </div>
   );
 }
@@ -643,7 +658,7 @@ function isRenderTimedOut(render: Render) {
   return ageMs > 15 * 60 * 1000; // 15 minutes
 }
 
-function RenderStatus({ render }: { render: Render }) {
+function RenderStatus({ render, onPublish }: { render: Render; onPublish?: () => void }) {
   const timedOut = isRenderTimedOut(render);
 
   if (timedOut) {
@@ -665,13 +680,32 @@ function RenderStatus({ render }: { render: Render }) {
   }
   if (render.status === "complete") {
     return (
-      <a
-        href={`/api/${render.output_path}`}
-        download
-        style={{ fontSize: 12, color: "var(--success)", textDecoration: "none", fontWeight: 600 }}
-      >
-        ↓ Descargar
-      </a>
+      <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <a
+          href={`/api/${render.output_path}`}
+          download
+          style={{ fontSize: 12, color: "var(--success)", textDecoration: "none", fontWeight: 600 }}
+        >
+          ↓ Descargar
+        </a>
+        {onPublish && (
+          <button
+            onClick={onPublish}
+            style={{
+              fontSize: 12,
+              color: "var(--foreground)",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: 5,
+              padding: "2px 8px",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            📤 Publicar
+          </button>
+        )}
+      </span>
     );
   }
   if (render.status === "failed") {

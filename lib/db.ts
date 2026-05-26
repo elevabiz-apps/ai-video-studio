@@ -93,9 +93,27 @@ function getDb(): InstanceType<typeof Database> {
     updated_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS uploads (
+    id TEXT PRIMARY KEY,
+    clip_id TEXT REFERENCES clips(id) ON DELETE SET NULL,
+    render_id TEXT REFERENCES renders(id) ON DELETE SET NULL,
+    platform TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'blotato',
+    external_post_id TEXT,
+    status TEXT DEFAULT 'pending',
+    caption TEXT,
+    scheduled_at TEXT,
+    published_at TEXT,
+    url TEXT,
+    error TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_clips_project ON clips(project_id, sort_order);
   CREATE INDEX IF NOT EXISTS idx_renders_project ON renders(project_id);
+  CREATE INDEX IF NOT EXISTS idx_uploads_clip ON uploads(clip_id);
+  CREATE INDEX IF NOT EXISTS idx_uploads_render ON uploads(render_id);
 `);
 
   return _db;
@@ -199,6 +217,38 @@ export const clipQueries = {
   get updateOutputPath() { return getDb().prepare<[string, string], void>("UPDATE clips SET output_path = ? WHERE id = ?"); },
   get updateHookPhrase() { return getDb().prepare<[string, string], void>("UPDATE clips SET hook_phrase = ? WHERE id = ?"); },
   get deleteByProject() { return getDb().prepare<[string], void>("DELETE FROM clips WHERE project_id = ?"); },
+};
+
+export type Upload = {
+  id: string;
+  clip_id: string | null;
+  render_id: string | null;
+  platform: string;
+  provider: string;
+  external_post_id: string | null;
+  status: "pending" | "uploading" | "scheduled" | "published" | "failed";
+  caption: string | null;
+  scheduled_at: string | null;
+  published_at: string | null;
+  url: string | null;
+  error: string | null;
+  created_at: string;
+};
+
+export const uploadQueries = {
+  get getById() { return getDb().prepare<[string], Upload>("SELECT * FROM uploads WHERE id = ?"); },
+  get getByClip() { return getDb().prepare<[string], Upload>("SELECT * FROM uploads WHERE clip_id = ? ORDER BY created_at DESC"); },
+  get getByRender() { return getDb().prepare<[string], Upload>("SELECT * FROM uploads WHERE render_id = ? ORDER BY created_at DESC"); },
+  get create() {
+    return getDb().prepare<[string, string | null, string | null, string, string, string | null], void>(
+      "INSERT INTO uploads (id, clip_id, render_id, platform, provider, caption) VALUES (?, ?, ?, ?, ?, ?)"
+    );
+  },
+  get update() {
+    return getDb().prepare<[string, string | null, string | null, string | null, string | null, string], void>(
+      "UPDATE uploads SET status = ?, external_post_id = ?, url = ?, error = ?, scheduled_at = ? WHERE id = ?"
+    );
+  },
 };
 
 // Proxy so callers can do `db.prepare(sql).run(...)` without triggering eager init

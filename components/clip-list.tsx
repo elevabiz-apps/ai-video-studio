@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Clip } from "@/lib/db";
+import PublishDialog from "./publish-dialog";
 
 interface ClipListProps {
   projectId: string;
@@ -14,6 +15,7 @@ interface ClipListProps {
 export default function ClipList({ projectId, initialClips, isReady, onSelectClip, selectedClipId }: ClipListProps) {
   const [clips, setClips] = useState<Clip[]>(initialClips);
   const [pollStartTime] = useState(() => Date.now());
+  const [publishingClip, setPublishingClip] = useState<Clip | null>(null);
 
   // Sync when parent refreshes clips (e.g. after pipeline completes)
   useEffect(() => {
@@ -186,25 +188,44 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
                 </div>
               )}
 
-              {/* Download / status */}
-              <div style={{ flexShrink: 0, paddingTop: 2 }}>
+              {/* Download / Publish / status */}
+              <div style={{ flexShrink: 0, paddingTop: 2, display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end" }}>
                 {isCut ? (
-                  <a
-                    href={`/api/${clip.output_path}`}
-                    download
-                    style={{
-                      background: "var(--accent)",
-                      color: "#fff",
-                      borderRadius: 6,
-                      padding: "4px 10px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      textDecoration: "none",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    ↓ Descargar
-                  </a>
+                  <>
+                    <a
+                      href={`/api/${clip.output_path}`}
+                      download
+                      style={{
+                        background: "var(--accent)",
+                        color: "#fff",
+                        borderRadius: 6,
+                        padding: "4px 10px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textDecoration: "none",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      ↓ Descargar
+                    </a>
+                    <button
+                      onClick={() => setPublishingClip(clip)}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid var(--border)",
+                        color: "var(--foreground)",
+                        borderRadius: 6,
+                        padding: "4px 10px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      📤 Publicar
+                    </button>
+                  </>
+
                 ) : Date.now() - pollStartTime > POLL_TIMEOUT_MS ? (
                   <div
                     style={{
@@ -248,6 +269,16 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
           </div>
         );
       })}
+
+      {/* Publish dialog */}
+      {publishingClip && (
+        <PublishDialog
+          filePath={publishingClip.output_path!}
+          clipId={publishingClip.id}
+          defaultCaption={publishingClip.name ?? publishingClip.hook_phrase ?? ""}
+          onClose={() => setPublishingClip(null)}
+        />
+      )}
     </div>
   );
 }
