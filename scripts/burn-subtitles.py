@@ -243,10 +243,26 @@ cmd = [
 ]
 
 print(f"[subtitles] Burning subtitles with ffmpeg ASS filter...", file=sys.stderr)
-result = subprocess.run(cmd, env={**os.environ})
 
-if result.returncode != 0:
-    print(f"[subtitles] ffmpeg failed (code {result.returncode})", file=sys.stderr)
+# Run ffmpeg with explicit stderr pipe so we control the output — avoids pipe
+# inheritance deadlocks when Python's own stdout/stderr are pipes from Node.js.
+proc = subprocess.Popen(
+    cmd,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+    env={**os.environ},
+    text=True,
+)
+
+for line in proc.stderr:
+    # Forward every ffmpeg line to our stderr so Node.js can read progress
+    sys.stderr.write(line)
+    sys.stderr.flush()
+
+proc.wait()
+
+if proc.returncode != 0:
+    print(f"[subtitles] ffmpeg failed (code {proc.returncode})", file=sys.stderr)
     shutil.rmtree(tmp_dir, ignore_errors=True)
     sys.exit(1)
 

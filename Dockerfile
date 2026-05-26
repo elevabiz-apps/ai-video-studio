@@ -34,6 +34,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip \
     ffmpeg \
     libgl1 libglib2.0-0 \
+    # Fonts + fontconfig — required by ffmpeg's libass subtitle filter.
+    # Without fonts, fontconfig hangs scanning an empty font directory.
+    fontconfig \
+    fonts-dejavu-core \
+    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --no-cache-dir --break-system-packages \
