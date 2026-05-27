@@ -33,6 +33,8 @@ export async function burnSubtitles(
   const script = path.join(CWD, "scripts", "burn-subtitles.py");
   const ffmpegBin = FFMPEG_BIN;
 
+  const TIMEOUT_MS = 8 * 60 * 1000; // 8 minutes — kill if ffmpeg hangs
+
   await new Promise<void>((resolve) => {
     const proc = spawn(
       "python3",
@@ -54,11 +56,28 @@ export async function burnSubtitles(
       }
     );
 
-    proc.stdout.on("data", (b: Buffer) => process.stdout.write(b));
-    proc.stderr.on("data", (b: Buffer) => process.stderr.write(b));
+    const timeoutId = setTimeout(() => {
+      console.warn("[subtitle] burn-subtitles.py timed out — killing process");
+      proc.kill("SIGKILL");
+      resolve();
+    }, TIMEOUT_MS);
+
+    // DO NOT use process.stdout.write / process.stderr.write — they are
+    // SYNCHRONOUS/BLOCKING in Node.js when stdio is a pipe (e.g. on Railway).
+    // Piping every ffmpeg progress line blocks the event loop, which stops the
+    // pipe from being drained, which blocks Python/ffmpeg → permanent deadlock.
+    // Only log our own diagnostic lines from the Python script.
+    const onData = (chunk: Buffer) => {
+      const text = chunk.toString();
+      for (const line of text.split("\n")) {
+        if (line.startsWith("[subtitles]")) console.log(line);
+      }
+    };
+    proc.stdout.on("data", onData);
+    proc.stderr.on("data", onData);
 
     proc.on("close", (code) => {
-      // Clean up temp captions file
+      clearTimeout(timeoutId);
       try { fs.unlinkSync(tmpCaptions); } catch { /* ignore */ }
       if (code !== 0) {
         console.warn(`[subtitle] burn-subtitles.py exited with code ${code} — clip saved without subtitles`);
@@ -67,6 +86,7 @@ export async function burnSubtitles(
     });
 
     proc.on("error", (err) => {
+      clearTimeout(timeoutId);
       try { fs.unlinkSync(tmpCaptions); } catch { /* ignore */ }
       console.warn("[subtitle] Failed to spawn burn-subtitles.py:", err.message);
       resolve();
