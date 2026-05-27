@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     // Import and kick off render in background (non-blocking)
     import("@/lib/rendering").then(({ spawnRender }) => {
-      spawnRender(renderId, project, platform, captionPreset ?? "bold", clip ?? undefined).catch((err: Error) => {
+      spawnRender(renderId, project, platform, captionPreset ?? "impacto_rosa", clip ?? undefined).catch((err: Error) => {
         console.error("Render error:", err.message);
       });
     });

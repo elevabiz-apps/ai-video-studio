@@ -19,7 +19,7 @@ export async function burnSubtitles(
   clipEndMs: number,
   captionsJson: string,
   offsetMs: number = 0,    // 0 = sync subtitles exactly with audio
-  preset: string = "bold"  // bold | classic | outline | glow | box
+  preset: string = "impacto_rosa"
 ): Promise<void> {
   if (!captionsJson) {
     console.warn("[subtitle] no captions provided, skipping");

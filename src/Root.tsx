@@ -152,7 +152,7 @@ export const RemotionRoot: React.FC = () => {
           defaultProps={{
             videoSrc: "assets/video.mp4",
             showCaptions: true,
-            captionPreset: "bold" as const,
+            captionPreset: "impacto_rosa" as const,
             removeSilence: false,
           }}
         />
@@ -168,7 +168,7 @@ export const RemotionRoot: React.FC = () => {
             clipStartSeconds: 0,
             clipEndSeconds: 30,
             showCaptions: true,
-            captionPreset: "bold" as const,
+            captionPreset: "impacto_rosa" as const,
           }}
         />
       </Folder>

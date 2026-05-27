@@ -323,7 +323,7 @@ function analyzePosts(posts: ScrapedPost[]): ProfileAnalysis {
   const silenceThreshold = pacing === "fast" ? "-35dB" : pacing === "slow" ? "-25dB" : "-30dB";
   const silenceMinDuration = pacing === "fast" ? 0.3 : pacing === "slow" ? 0.8 : 0.5;
   const wordsPerPhrase = pacing === "fast" ? 4 : pacing === "slow" ? 7 : 6;
-  const captionPreset = "bold"; // default, can be overridden
+  const captionPreset = "impacto_rosa";
 
   return {
     niche: niche.main,
@@ -357,7 +357,7 @@ function defaultAnalysis(): ProfileAnalysis {
     avg_engagement_rate: 0,
     silence_threshold_db: "-30dB",
     silence_min_duration: 0.5,
-    caption_preset: "bold",
+    caption_preset: "impacto_rosa",
     words_per_phrase: 6,
   };
 }

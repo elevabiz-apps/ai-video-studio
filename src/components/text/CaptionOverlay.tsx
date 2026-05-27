@@ -15,7 +15,7 @@ import {
 } from "@remotion/captions";
 import {FONT_FAMILIES, loadGoogleFont} from "../../presets/fonts";
 
-export type CaptionPreset = "classic" | "bold" | "outline" | "glow" | "box";
+export type CaptionPreset = "classic" | "bold" | "outline" | "glow" | "box" | "impacto" | "rosa" | "impacto_rosa";
 
 export interface CaptionOverlayProps {
   captionsSource: string;
@@ -37,6 +37,8 @@ const PRESET_STYLES: Record<CaptionPreset, {
   shadow: string;
   stroke: string;
   highlightBg: string;
+  highlightColorOverride?: string;
+  textTransform?: "uppercase" | "none";
 }> = {
   classic: {
     bg: "transparent",
@@ -68,12 +70,34 @@ const PRESET_STYLES: Record<CaptionPreset, {
     stroke: "none",
     highlightBg: "rgba(99,102,241,0.9)",
   },
+  impacto: {
+    bg: "transparent",
+    shadow: "-3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000",
+    stroke: "none",
+    highlightBg: "transparent",
+    textTransform: "uppercase",
+  },
+  rosa: {
+    bg: "rgba(139,32,96,0.9)",
+    shadow: "none",
+    stroke: "none",
+    highlightBg: "rgba(139,32,96,1)",
+    textTransform: "uppercase",
+  },
+  impacto_rosa: {
+    bg: "transparent",
+    shadow: "-3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000",
+    stroke: "none",
+    highlightBg: "transparent",
+    highlightColorOverride: "#E1306C",
+    textTransform: "uppercase",
+  },
 };
 
 export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
   captionsSource,
   captionsData,
-  preset = "bold",
+  preset = "impacto_rosa",
   position = "bottom",
   fontSize = 64,
   fontFamily = FONT_FAMILIES.heading,
@@ -234,21 +258,25 @@ const CaptionPage: React.FC<CaptionPageProps> = ({
         {page.tokens.map((token, i) => {
           const isActive =
             token.fromMs <= absoluteTimeMs && token.toMs > absoluteTimeMs;
+          const activeColor = presetStyle.highlightColorOverride ?? highlightColor;
+          const text = presetStyle.textTransform === "uppercase"
+            ? token.text.toUpperCase()
+            : token.text;
 
           return (
             <span
               key={i}
               style={{
-                color: isActive ? highlightColor : textColor,
+                color: isActive ? activeColor : textColor,
                 textShadow: presetStyle.shadow,
-                backgroundColor: isActive && preset === "box"
+                backgroundColor: isActive && (preset === "box" || preset === "rosa")
                   ? presetStyle.highlightBg
                   : "transparent",
-                borderRadius: preset === "box" ? 4 : 0,
-                padding: preset === "box" ? "2px 4px" : 0,
+                borderRadius: (preset === "box" || preset === "rosa") ? 4 : 0,
+                padding: (preset === "box" || preset === "rosa") ? "2px 4px" : 0,
               }}
             >
-              {token.text}
+              {text}
             </span>
           );
         })}

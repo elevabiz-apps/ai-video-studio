@@ -215,6 +215,18 @@ PRESET_STYLES = {
         "_uppercase": True,
         "_font_scale": 1.4,
     },
+    # "impacto_rosa": karaoke hybrid — most words in white UPPERCASE (impacto style),
+    # active word highlighted in Instagram pink (#E1306C → ASS BGR &H006C30E1).
+    # DEFAULT preset for all new videos.
+    "impacto_rosa": {
+        "PrimaryColour":  "&H006C30E1",   # Instagram pink — active/highlighted word
+        "SecondaryColour":"&H00FFFFFF",   # white — words not yet reached
+        "OutlineColour":  "&H00000000",   # black outline
+        "BackColour":     "&H00000000",
+        "Bold": 1, "BorderStyle": 1, "Outline": 5, "Shadow": 2,
+        "_uppercase": True,
+        "_font_scale": 1.4,
+    },
 }
 
 # Extract custom processing flags (not valid ASS fields) before building header

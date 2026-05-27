@@ -38,7 +38,7 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
   silencePath,
   removeSilence = false,
   showCaptions = true,
-  captionPreset = "bold",
+  captionPreset = "impacto_rosa",
   title,
   titleDuration = 90,
   speakerName,

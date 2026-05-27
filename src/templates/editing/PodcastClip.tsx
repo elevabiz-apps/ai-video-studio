@@ -26,7 +26,7 @@ export const PodcastClip: React.FC<PodcastClipProps> = ({
   clipEndSeconds = 30,
   captionsPath,
   showCaptions = true,
-  captionPreset = "bold",
+  captionPreset = "impacto_rosa",
   title,
   accentColor = "#6366f1",
 }) => {

@@ -32,7 +32,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   const [pipelineDone, setPipelineDone] = useState(
     !!initialProject.captions && !!initialProject.silence_data
   );
-  const [captionPreset, setCaptionPreset] = useState(initialProject.caption_preset || "bold");
+  const [captionPreset, setCaptionPreset] = useState(initialProject.caption_preset || "impacto_rosa");
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -210,7 +210,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
     [project.id]
   );
 
-  const CAPTION_PRESETS = ["rosa", "impacto", "bold", "classic", "outline", "glow", "box", "minimal", "neon", "gradient", "karaoke"] as const;
+  const CAPTION_PRESETS = ["impacto_rosa", "impacto", "rosa", "bold", "classic", "outline", "glow", "box", "minimal", "neon", "gradient", "karaoke"] as const;
 
   const hasVideo = !!project.source_video;
   const isProcessing = project.status === "processing" || !!jobId;

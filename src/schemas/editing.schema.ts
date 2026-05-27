@@ -17,7 +17,7 @@ export const VideoClipSchema = z.object({
 
 export const CaptionOverlaySchema = z.object({
   captionsSource: z.string(),
-  preset: z.enum(["classic", "bold", "outline", "glow", "box"]).optional().default("bold"),
+  preset: z.enum(["classic", "bold", "outline", "glow", "box", "impacto", "rosa", "impacto_rosa"]).optional().default("impacto_rosa"),
   position: z.enum(["top", "center", "bottom"]).optional().default("bottom"),
   fontSize: z.number().optional().default(64),
   highlightColor: z.string().optional().default("#39E508"),
@@ -40,7 +40,7 @@ export const TalkingHeadEditSchema = z.object({
   silencePath: z.string().optional(),
   removeSilence: z.boolean().optional().default(false),
   showCaptions: z.boolean().optional().default(true),
-  captionPreset: z.enum(["classic", "bold", "outline", "glow", "box"]).optional().default("bold"),
+  captionPreset: z.enum(["classic", "bold", "outline", "glow", "box", "impacto", "rosa", "impacto_rosa"]).optional().default("impacto_rosa"),
   title: z.string().optional(),
   speakerName: z.string().optional(),
   speakerTitle: z.string().optional(),
@@ -55,6 +55,6 @@ export const PodcastClipSchema = z.object({
   clipEndSeconds: z.number().optional().default(30),
   captionsPath: z.string().optional(),
   showCaptions: z.boolean().optional().default(true),
-  captionPreset: z.enum(["classic", "bold", "outline", "glow", "box"]).optional().default("bold"),
+  captionPreset: z.enum(["classic", "bold", "outline", "glow", "box", "impacto", "rosa", "impacto_rosa"]).optional().default("impacto_rosa"),
   title: z.string().optional(),
 });
