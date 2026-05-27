@@ -210,11 +210,12 @@ export default function ProjectEditor({ project: initialProject, renders: initia
     [project.id]
   );
 
-  const CAPTION_PRESETS = ["bold", "classic", "outline", "glow", "box"] as const;
+  const CAPTION_PRESETS = ["bold", "classic", "outline", "glow", "box", "minimal", "neon", "gradient", "karaoke"] as const;
 
   const hasVideo = !!project.source_video;
   const isProcessing = project.status === "processing" || !!jobId;
   const isReady = project.status === "ready" || pipelineDone;
+  const isFailed = project.status === "failed" && !isProcessing && !isReady;
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
@@ -417,6 +418,57 @@ export default function ProjectEditor({ project: initialProject, renders: initia
                   }}
                 >
                   Re-procesar
+                </button>
+              </div>
+            ) : isFailed ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#ef4444",
+                    background: "rgba(239,68,68,0.08)",
+                    border: "1px solid rgba(239,68,68,0.2)",
+                    borderRadius: 6,
+                    padding: "8px 10px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span>⚠️</span>
+                  <span>El pipeline falló. Podés reintentar — se retoma desde donde quedó.</span>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/process/retry", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ projectId: project.id }),
+                      });
+                      const data = await res.json();
+                      if (res.ok && data.jobId) {
+                        setJobId(data.jobId);
+                      } else {
+                        alert(data.error || "Error al reintentar");
+                      }
+                    } catch {
+                      alert("Error de conexión al reintentar");
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    background: "#ef4444",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "10px",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  🔄 Reintentar pipeline
                 </button>
               </div>
             ) : (

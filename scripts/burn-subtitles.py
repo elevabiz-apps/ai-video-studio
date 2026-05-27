@@ -157,6 +157,34 @@ PRESET_STYLES = {
         "BackColour":     "&H99000000",   # semi-transparent black box
         "Bold": 1, "BorderStyle": 3, "Outline": 1, "Shadow": 0,
     },
+    "minimal": {
+        "PrimaryColour":  "&H00FFFFFF",   # white text
+        "SecondaryColour":"&H55FFFFFF",   # karaoke future: semi-transparent white
+        "OutlineColour":  "&H00000000",
+        "BackColour":     "&H00000000",
+        "Bold": 0, "BorderStyle": 1, "Outline": 1, "Shadow": 0,
+    },
+    "neon": {
+        "PrimaryColour":  "&H0000FF00",   # bright green (BGR)
+        "SecondaryColour":"&H00444444",   # dark grey future text
+        "OutlineColour":  "&H0000AA00",   # slightly darker green outline
+        "BackColour":     "&H00000000",
+        "Bold": 1, "BorderStyle": 1, "Outline": 3, "Shadow": 8,
+    },
+    "gradient": {
+        "PrimaryColour":  "&H00FF88FF",   # light magenta/pink (BGR)
+        "SecondaryColour":"&H00FFAA44",   # orange future text (BGR)
+        "OutlineColour":  "&H00000000",
+        "BackColour":     "&H00000000",
+        "Bold": 1, "BorderStyle": 1, "Outline": 3, "Shadow": 2,
+    },
+    "karaoke": {
+        "PrimaryColour":  "&H0039E508",   # bright green highlight (BGR for #08E539)
+        "SecondaryColour":"&H00FFFFFF",   # white future text
+        "OutlineColour":  "&H00000000",   # black outline
+        "BackColour":     "&H00000000",
+        "Bold": 1, "BorderStyle": 1, "Outline": 4, "Shadow": 0,
+    },
 }
 
 st = PRESET_STYLES.get(PRESET, PRESET_STYLES["bold"])

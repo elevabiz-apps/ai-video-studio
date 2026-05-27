@@ -35,7 +35,9 @@ function getDb(): InstanceType<typeof Database> {
   // Migrations (safe to run on existing DBs)
   try { _db.exec(`ALTER TABLE clips ADD COLUMN output_path TEXT`); } catch { /* already exists */ }
   try { _db.exec(`ALTER TABLE clips ADD COLUMN hook_phrase TEXT`); } catch { /* already exists */ }
+  try { _db.exec(`ALTER TABLE clips ADD COLUMN approval_status TEXT DEFAULT 'pending'`); } catch { /* already exists */ }
   try { _db.exec(`ALTER TABLE projects ADD COLUMN original_video TEXT`); } catch { /* already exists */ }
+  try { _db.exec(`ALTER TABLE jobs ADD COLUMN completed_steps TEXT DEFAULT '[]'`); } catch { /* already exists */ }
 
   // Initialize schema
   _db.exec(`
@@ -242,7 +244,7 @@ export type Project = {
   silence_data: string | null;
   caption_preset: string;
   caption_style: string;
-  status: "draft" | "processing" | "ready" | "rendering" | "rendered";
+  status: "draft" | "processing" | "ready" | "rendering" | "rendered" | "failed";
   created_at: string;
   updated_at: string;
 };
@@ -257,6 +259,7 @@ export type Clip = {
   hook_phrase: string | null;
   ai_score: number | null;
   ai_reasoning: string | null;
+  approval_status: "pending" | "approved" | "rejected";
   sort_order: number;
   created_at: string;
 };
@@ -280,6 +283,7 @@ export type Job = {
   status: "pending" | "processing" | "complete" | "failed";
   progress: number;
   current_step: string | null;
+  completed_steps: string;
   result: string | null;
   error: string | null;
   created_at: string;
@@ -328,6 +332,7 @@ export const clipQueries = {
   get updateSortOrder() { return getDb().prepare<[number, string], void>("UPDATE clips SET sort_order = ? WHERE id = ?"); },
   get updateOutputPath() { return getDb().prepare<[string, string], void>("UPDATE clips SET output_path = ? WHERE id = ?"); },
   get updateHookPhrase() { return getDb().prepare<[string, string], void>("UPDATE clips SET hook_phrase = ? WHERE id = ?"); },
+  get updateApproval() { return getDb().prepare<[string, string], void>("UPDATE clips SET approval_status = ? WHERE id = ?"); },
   get deleteByProject() { return getDb().prepare<[string], void>("DELETE FROM clips WHERE project_id = ?"); },
 };
 

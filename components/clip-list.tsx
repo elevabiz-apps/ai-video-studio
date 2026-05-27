@@ -16,6 +16,7 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
   const [clips, setClips] = useState<Clip[]>(initialClips);
   const [pollStartTime] = useState(() => Date.now());
   const [publishingClip, setPublishingClip] = useState<Clip | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   // Sync when parent refreshes clips (e.g. after pipeline completes)
   useEffect(() => {
@@ -48,6 +49,32 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
     return () => clearInterval(interval);
   }, [projectId, clips, isReady, pollStartTime]);
 
+  const handleApproval = async (clipId: string, status: "approved" | "rejected" | "pending") => {
+    setApprovingId(clipId);
+    try {
+      const res = await fetch(`/api/clips/${clipId}/approve`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        setClips((prev) =>
+          prev.map((c) => (c.id === clipId ? { ...c, approval_status: status } : c))
+        );
+      }
+    } catch {
+      // ignore
+    }
+    setApprovingId(null);
+  };
+
+  const handleBulkApprove = async () => {
+    const pending = clips.filter((c) => c.approval_status !== "approved" && c.approval_status !== "rejected");
+    for (const clip of pending) {
+      await handleApproval(clip.id, "approved");
+    }
+  };
+
   if (!isReady) {
     return (
       <div style={{ color: "var(--muted-foreground)", fontSize: 13, textAlign: "center", padding: "12px 0" }}>
@@ -65,6 +92,9 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
   }
 
   const hasAiClips = clips.some((c) => c.hook_phrase);
+  const approvedCount = clips.filter((c) => c.approval_status === "approved").length;
+  const rejectedCount = clips.filter((c) => c.approval_status === "rejected").length;
+  const pendingCount = clips.filter((c) => !c.approval_status || c.approval_status === "pending").length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -92,23 +122,62 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
         )}
       </div>
 
+      {/* Approval summary + bulk actions */}
+      {clips.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "var(--muted)", borderRadius: 8, padding: "6px 10px", marginBottom: 4,
+        }}>
+          <div style={{ display: "flex", gap: 10, fontSize: 11 }}>
+            {approvedCount > 0 && <span style={{ color: "#22c55e" }}>✅ {approvedCount}</span>}
+            {rejectedCount > 0 && <span style={{ color: "#ef4444" }}>❌ {rejectedCount}</span>}
+            {pendingCount > 0 && <span style={{ color: "#f59e0b" }}>⏳ {pendingCount}</span>}
+          </div>
+          {pendingCount > 0 && (
+            <button
+              onClick={handleBulkApprove}
+              style={{
+                background: "transparent", border: "1px solid rgba(34,197,94,0.3)",
+                color: "#22c55e", borderRadius: 6, padding: "3px 8px",
+                fontSize: 10, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Aprobar todos
+            </button>
+          )}
+        </div>
+      )}
+
       {clips.map((clip, idx) => {
         const durationSec = Math.round(clip.end_seconds - clip.start_seconds);
         const isCut = !!clip.output_path;
         const hookText = clip.hook_phrase ?? clip.name ?? `Clip ${idx + 1}`;
         const reasonText = clip.ai_reasoning;
+        const status = clip.approval_status || "pending";
+        const isRejected = status === "rejected";
 
         return (
           <div
             key={clip.id}
             onClick={() => onSelectClip?.(clip)}
             style={{
-              background: selectedClipId === clip.id ? "rgba(99,102,241,0.08)" : "var(--muted)",
+              background: selectedClipId === clip.id
+                ? "rgba(99,102,241,0.08)"
+                : isRejected
+                ? "rgba(239,68,68,0.04)"
+                : "var(--muted)",
               borderRadius: 10,
-              border: `1px solid ${selectedClipId === clip.id ? "var(--accent)" : "var(--border)"}`,
+              border: `1px solid ${
+                selectedClipId === clip.id
+                  ? "var(--accent)"
+                  : isRejected
+                  ? "rgba(239,68,68,0.2)"
+                  : "var(--border)"
+              }`,
               overflow: "hidden",
               cursor: onSelectClip ? "pointer" : "default",
               transition: "border-color 0.15s, background 0.15s",
+              opacity: isRejected ? 0.5 : 1,
             }}
           >
             {/* Main row */}
@@ -188,13 +257,47 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
                 </div>
               )}
 
-              {/* Download / Publish / status */}
+              {/* Actions column */}
               <div style={{ flexShrink: 0, paddingTop: 2, display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end" }}>
                 {isCut ? (
                   <>
+                    {/* Approval buttons */}
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleApproval(clip.id, status === "approved" ? "pending" : "approved"); }}
+                        disabled={approvingId === clip.id}
+                        title={status === "approved" ? "Desaprobar" : "Aprobar"}
+                        style={{
+                          width: 26, height: 26, borderRadius: 6, border: "none",
+                          background: status === "approved" ? "rgba(34,197,94,0.15)" : "var(--card)",
+                          color: status === "approved" ? "#22c55e" : "var(--muted-foreground)",
+                          cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center",
+                          outline: status === "approved" ? "1px solid rgba(34,197,94,0.3)" : "1px solid var(--border)",
+                        }}
+                      >
+                        ✓
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleApproval(clip.id, status === "rejected" ? "pending" : "rejected"); }}
+                        disabled={approvingId === clip.id}
+                        title={status === "rejected" ? "Restaurar" : "Descartar"}
+                        style={{
+                          width: 26, height: 26, borderRadius: 6, border: "none",
+                          background: status === "rejected" ? "rgba(239,68,68,0.15)" : "var(--card)",
+                          color: status === "rejected" ? "#ef4444" : "var(--muted-foreground)",
+                          cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center",
+                          outline: status === "rejected" ? "1px solid rgba(239,68,68,0.3)" : "1px solid var(--border)",
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Download + Publish */}
                     <a
                       href={`/api/${clip.output_path}`}
                       download
+                      onClick={(e) => e.stopPropagation()}
                       style={{
                         background: "var(--accent)",
                         color: "#fff",
@@ -208,22 +311,29 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
                     >
                       ↓ Descargar
                     </a>
-                    <button
-                      onClick={() => setPublishingClip(clip)}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid var(--border)",
-                        color: "var(--foreground)",
-                        borderRadius: 6,
-                        padding: "4px 10px",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      📤 Publicar
-                    </button>
+                    {status === "approved" && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setPublishingClip(clip); }}
+                        style={{
+                          background: "transparent",
+                          border: "1px solid var(--border)",
+                          color: "var(--foreground)",
+                          borderRadius: 6,
+                          padding: "4px 10px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        📤 Publicar
+                      </button>
+                    )}
+                    {status === "pending" && (
+                      <div style={{ fontSize: 10, color: "#f59e0b", fontStyle: "italic" }}>
+                        Aprobá para publicar
+                      </div>
+                    )}
                   </>
 
                 ) : Date.now() - pollStartTime > POLL_TIMEOUT_MS ? (
