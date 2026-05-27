@@ -53,11 +53,16 @@ ENV HOSTNAME=0.0.0.0
 ENV FFMPEG_PATH=/usr/bin/ffmpeg
 ENV FFPROBE_PATH=/usr/bin/ffprobe
 
+# Copy standalone output FIRST, but clear any included node_modules to avoid conflicts
 COPY --from=builder /app/.next/standalone ./
+RUN rm -rf /app/node_modules  # Remove any node_modules from standalone output
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/scripts ./scripts
+
+# Copy clean node_modules from builder (overwrite any from standalone)
 COPY --from=builder /app/node_modules ./node_modules
+
 COPY --from=builder /app/start.sh ./start.sh
 RUN chmod +x start.sh
 
