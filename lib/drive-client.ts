@@ -15,8 +15,8 @@ import type { Readable } from "stream";
 const CLIENT_ID = () => process.env.GOOGLE_CLIENT_ID ?? "";
 const CLIENT_SECRET = () => process.env.GOOGLE_CLIENT_SECRET ?? "";
 const REDIRECT_URI = (origin?: string) => {
-  // Explicit env var always wins
-  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
+  // Explicit env var always wins — trim to guard against copy-paste trailing newlines
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI.trim();
   // If called with the request origin (production), build it from there
   if (origin) return `${origin}/api/auth/google/callback`;
   // Fallback for local dev
