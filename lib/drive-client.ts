@@ -30,7 +30,7 @@ const REDIRECT_URI = (origin?: string) => {
 // renaming videos the user uploaded manually.
 const SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
-  "https://www.googleapis.com/auth/drive.metadata.write",
+  "https://www.googleapis.com/auth/drive.metadata", // read + write metadata (rename, update)
 ];
 
 // ─── OAuth2 Client ───────────────────────────────────────────────────────────
