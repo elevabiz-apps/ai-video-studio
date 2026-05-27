@@ -27,17 +27,17 @@ echo "[start] NODE_ENV=$NODE_ENV"
 echo "[start] HOSTNAME=$HOSTNAME"
 echo "[start] PORT=$PORT"
 
-# Check if node and npm are available
-if command -v node > /dev/null 2>&1; then
-  echo "[start] NODE_VERSION: $(node --version)"
-else
-  handle_error "Node.js is not installed or not in PATH"
+# Check if node is available
+NODE_BIN=$(which node 2>/dev/null || echo "/usr/local/bin/node")
+if [ ! -x "$NODE_BIN" ]; then
+  NODE_BIN="/usr/bin/node"
 fi
 
-if command -v npm > /dev/null 2>&1; then
-  echo "[start] NPM_VERSION: $(npm --version)"
+if [ -x "$NODE_BIN" ]; then
+  echo "[start] NODE_PATH: $NODE_BIN"
+  echo "[start] NODE_VERSION: $($NODE_BIN --version)"
 else
-  echo "[start] WARNING: npm not found in PATH"
+  handle_error "Node.js not found. Checked: $(which node 2>/dev/null), /usr/local/bin/node, /usr/bin/node"
 fi
 
 echo ""
@@ -97,6 +97,6 @@ echo "[start] ✓ node_modules directory found"
 
 echo ""
 echo "========================================="
-echo "[start] Starting Next.js server..."
+echo "[start] Starting Next.js server with $NODE_BIN..."
 echo "========================================="
-exec node server.js
+exec $NODE_BIN server.js
