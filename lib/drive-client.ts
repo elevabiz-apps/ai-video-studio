@@ -43,12 +43,14 @@ function createOAuth2Client(origin?: string) {
  * Pass `origin` (e.g. "https://myapp.railway.app") to build the correct redirect_uri
  * dynamically when GOOGLE_REDIRECT_URI is not set.
  */
-export function getAuthUrl(origin?: string): string {
+export function getAuthUrl(origin?: string, state?: string): string {
   const client = createOAuth2Client(origin);
   return client.generateAuthUrl({
     access_type: "offline", // get refresh_token
     prompt: "consent",
     scope: SCOPES,
+    // state is required by Google's OAuth 2.0 secure-response-handling policy (CSRF protection)
+    state: state ?? "drive-auth",
   });
 }
 
