@@ -6,6 +6,8 @@ type ConnectionStatus = {
   drive: { configured: boolean; authenticated: boolean };
   blotato: { configured: boolean };
   apify: { configured: boolean };
+  anthropic: { configured: boolean };
+  groq: { configured: boolean };
 };
 
 type ContentProfile = {
@@ -140,16 +142,16 @@ export default function SettingsPage() {
             name="Anthropic (Claude)"
             icon="🧠"
             description="Scoring inteligente de clips con IA para identificar momentos virales"
-            status="unknown"
-            statusText="Verificar ANTHROPIC_API_KEY en variables de entorno"
+            status={connections.anthropic.configured ? "connected" : "disconnected"}
+            statusText={connections.anthropic.configured ? "API key configurada" : "Falta ANTHROPIC_API_KEY"}
             envVars={["ANTHROPIC_API_KEY"]}
           />
           <ConnectionRow
             name="Groq (Whisper)"
             icon="🎙️"
             description="Transcripción de audio a texto con timestamps palabra por palabra"
-            status="unknown"
-            statusText="Verificar GROQ_API_KEY en variables de entorno"
+            status={connections.groq.configured ? "connected" : "disconnected"}
+            statusText={connections.groq.configured ? "API key configurada" : "Falta GROQ_API_KEY"}
             envVars={["GROQ_API_KEY"]}
           />
           <ConnectionRow

@@ -34,6 +34,12 @@ export async function GET() {
     apify: {
       configured: hasApifyToken(),
     },
+    anthropic: {
+      configured: !!process.env.ANTHROPIC_API_KEY?.trim(),
+    },
+    groq: {
+      configured: !!process.env.GROQ_API_KEY?.trim(),
+    },
   };
 
   // Auto-config
