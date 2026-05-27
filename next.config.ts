@@ -14,9 +14,23 @@ const nextConfig: NextConfig = {
     "better-sqlite3",
     "@remotion/renderer",
     "@remotion/compositor-darwin-arm64",
+    "@remotion/compositor-linux-arm64",
+    "@remotion/compositor-linux-x64",
     "fluent-ffmpeg",
     "sharp",
   ],
+  // Exclude massive Remotion packages from standalone file tracing.
+  // Without this, "Collecting build traces" hangs indefinitely because
+  // Remotion includes huge native binaries that the tracer can't finish scanning.
+  outputFileTracingExcludes: {
+    "*": [
+      "node_modules/remotion/**",
+      "node_modules/@remotion/**",
+      "node_modules/@imgly/**",
+      "node_modules/sharp/**",
+      "node_modules/fluent-ffmpeg/**",
+    ],
+  },
   // Allow video/audio files from public/
   async headers() {
     return [
