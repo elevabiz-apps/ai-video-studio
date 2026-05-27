@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
+import type { ContentProfile } from "./db";
+import { getProfileContext } from "./profile-builder";
 
 /** Read ANTHROPIC_API_KEY from process.env or directly from .env.local as fallback */
 function resolveApiKey(): string | undefined {
@@ -106,7 +108,10 @@ function snapToToken(targetMs: number, tokens: Token[], preferStart: boolean): n
  * Falls back gracefully: if Claude's response can't be parsed, returns empty
  * array so the caller can fall back to pause-based segmentation.
  */
-export async function smartClipVideo(tokens: Token[]): Promise<SmartClip[]> {
+export async function smartClipVideo(
+  tokens: Token[],
+  contentProfile?: ContentProfile | null
+): Promise<SmartClip[]> {
   if (tokens.length === 0) return [];
 
   const { lines, startMsValues } = buildLabeledTranscript(tokens);
@@ -116,19 +121,43 @@ export async function smartClipVideo(tokens: Token[]): Promise<SmartClip[]> {
   // Build a compact list of valid start timestamps for the prompt
   const validStarts = startMsValues.join(", ");
 
+  // Duration range: from profile or default
+  const minDuration = contentProfile?.optimal_duration_min ?? 20;
+  const maxDuration = contentProfile?.optimal_duration_max ?? 60;
+
+  // Build profile context section if available
+  const profileSection = contentProfile
+    ? `\n${getProfileContext(contentProfile)}\n`
+    : "";
+
+  // Scoring criteria adapted based on whether we have a profile
+  const scoringCriteria = contentProfile?.niche
+    ? `CRITERIOS DE SCORING (adaptados al nicho "${contentProfile.niche}"):
+• 90-100: Gancho perfecto para este nicho + duración óptima + tema alineado con el perfil
+• 70-89: Buen gancho + tema relacionado pero duración o estilo no óptimos
+• 50-69: Contenido relevante pero gancho débil para este nicho
+• <50: No encaja bien con el perfil de la cuenta`
+    : `CRITERIOS DE SCORING:
+• 90-100: Gancho excepcional + cierre perfecto + alto potencial viral
+• 70-89: Buen gancho + contenido sólido
+• 50-69: Gancho aceptable pero mejorable
+• <50: Gancho débil o contenido poco engaging`;
+
   const prompt = `Sos un editor experto en contenido viral para TikTok, Instagram Reels y YouTube Shorts.
 
 Analizás la transcripción de un video de ${totalSec}s en español. Cada línea empieza con [ms] — el timestamp en milisegundos del inicio de esa frase.
-
-MISIÓN: identificar los mejores momentos para hacer clips virales.
+${profileSection}
+MISIÓN: identificar los mejores momentos para hacer clips virales${contentProfile?.niche ? ` para el nicho de ${contentProfile.niche}` : ""}.
 
 REGLAS:
 • El inicio DEBE ser un gancho fuerte: pregunta directa, dato sorprendente, declaración emocional, promesa de valor, o inicio de historia que genera curiosidad
 • El final debe cerrar la idea — nunca cortar a mitad de oración
-• Duración ideal: 20-60 segundos por clip
+• Duración ideal: ${minDuration}-${maxDuration} segundos por clip
 • Encontrá entre 3 y 8 clips — el mínimo es 3, más clips = mejor resultado para el usuario
 • Los clips NO se deben solapar: el start_ms de cada clip debe ser mayor al end_ms del anterior
 • start_ms y end_ms DEBEN ser valores exactos de esta lista: ${validStarts}
+
+${scoringCriteria}
 
 TRANSCRIPCIÓN:
 ${transcript}

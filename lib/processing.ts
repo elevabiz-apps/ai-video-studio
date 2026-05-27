@@ -434,7 +434,19 @@ export async function spawnMultiClipPipeline(
       await updateJob("processing", 89, "Analizando contenido con IA...");
       try {
         const captions = JSON.parse(captionsJson);
-        const smartClips = await smartClipVideo(captions);
+
+        // Load content profile if one exists for an auto-config linked to this project
+        let contentProfile = null;
+        try {
+          const dbMod = await import("./db");
+          const configs = dbMod.autoConfigQueries.getEnabled.all() as Array<{ content_profile_id: string | null }>;
+          const cpId = configs.find((c) => c.content_profile_id)?.content_profile_id;
+          if (cpId) {
+            contentProfile = dbMod.contentProfileQueries.getById.get(cpId) ?? null;
+          }
+        } catch { /* no profile available, use default scoring */ }
+
+        const smartClips = await smartClipVideo(captions, contentProfile);
         if (smartClips.length > 0) {
           const sorted = [...smartClips].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
           segments = sorted.map((c) => ({

@@ -53,6 +53,8 @@ export default function RootLayout({
 
             <nav style={{ padding: "16px 12px", flex: 1 }}>
               <NavLink href="/" label="Proyectos" icon="🎬" />
+              <NavLink href="/dashboard" label="Automatización" icon="🤖" />
+              <NavLink href="/dashboard/analytics" label="Analytics" icon="📊" />
               <NavLink href="/settings" label="Configuración" icon="⚙️" />
             </nav>
 
