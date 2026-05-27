@@ -121,11 +121,15 @@ except Exception:
 
 FONT_SIZE = max(36, vid_height // 22)
 
+# ASS colours: &HAABBGGRR  (alpha, blue, green, red)
+# _uppercase: True → convert all subtitle text to UPPERCASE
+# _font_scale: multiplier on top of FONT_SIZE
 PRESET_STYLES = {
+    # ── Plain presets ──────────────────────────────────────────────────────
     "bold": {
-        "PrimaryColour":  "&H00FFFFFF",   # white text
-        "SecondaryColour":"&H00AAAAAA",   # karaoke future: grey
-        "OutlineColour":  "&H00000000",   # black outline
+        "PrimaryColour":  "&H00FFFFFF",
+        "SecondaryColour":"&H00AAAAAA",
+        "OutlineColour":  "&H00000000",
         "BackColour":     "&H00000000",
         "Bold": 1, "BorderStyle": 1, "Outline": 3, "Shadow": 0,
     },
@@ -144,50 +148,80 @@ PRESET_STYLES = {
         "Bold": 1, "BorderStyle": 1, "Outline": 5, "Shadow": 0,
     },
     "glow": {
-        "PrimaryColour":  "&H0064FFFF",   # yellow/gold active
+        "PrimaryColour":  "&H0064FFFF",
         "SecondaryColour":"&H00DDDDDD",
         "OutlineColour":  "&H00000000",
         "BackColour":     "&H00000000",
         "Bold": 1, "BorderStyle": 1, "Outline": 2, "Shadow": 5,
     },
-    "box": {
-        "PrimaryColour":  "&H00FFFFFF",
-        "SecondaryColour":"&H00AAAAAA",
-        "OutlineColour":  "&H00000000",
-        "BackColour":     "&H99000000",   # semi-transparent black box
-        "Bold": 1, "BorderStyle": 3, "Outline": 1, "Shadow": 0,
-    },
     "minimal": {
-        "PrimaryColour":  "&H00FFFFFF",   # white text
-        "SecondaryColour":"&H55FFFFFF",   # karaoke future: semi-transparent white
+        "PrimaryColour":  "&H00FFFFFF",
+        "SecondaryColour":"&H55FFFFFF",
         "OutlineColour":  "&H00000000",
         "BackColour":     "&H00000000",
         "Bold": 0, "BorderStyle": 1, "Outline": 1, "Shadow": 0,
     },
     "neon": {
-        "PrimaryColour":  "&H0000FF00",   # bright green (BGR)
-        "SecondaryColour":"&H00444444",   # dark grey future text
-        "OutlineColour":  "&H0000AA00",   # slightly darker green outline
+        "PrimaryColour":  "&H0000FF00",
+        "SecondaryColour":"&H00444444",
+        "OutlineColour":  "&H0000AA00",
         "BackColour":     "&H00000000",
         "Bold": 1, "BorderStyle": 1, "Outline": 3, "Shadow": 8,
     },
     "gradient": {
-        "PrimaryColour":  "&H00FF88FF",   # light magenta/pink (BGR)
-        "SecondaryColour":"&H00FFAA44",   # orange future text (BGR)
+        "PrimaryColour":  "&H00FF88FF",
+        "SecondaryColour":"&H00FFAA44",
         "OutlineColour":  "&H00000000",
         "BackColour":     "&H00000000",
         "Bold": 1, "BorderStyle": 1, "Outline": 3, "Shadow": 2,
     },
     "karaoke": {
-        "PrimaryColour":  "&H0039E508",   # bright green highlight (BGR for #08E539)
-        "SecondaryColour":"&H00FFFFFF",   # white future text
-        "OutlineColour":  "&H00000000",   # black outline
+        "PrimaryColour":  "&H0039E508",   # bright green highlight
+        "SecondaryColour":"&H00FFFFFF",
+        "OutlineColour":  "&H00000000",
         "BackColour":     "&H00000000",
         "Bold": 1, "BorderStyle": 1, "Outline": 4, "Shadow": 0,
     },
+    "box": {
+        "PrimaryColour":  "&H00FFFFFF",
+        "SecondaryColour":"&H00AAAAAA",
+        "OutlineColour":  "&H00000000",
+        "BackColour":     "&H99000000",
+        "Bold": 1, "BorderStyle": 3, "Outline": 10, "Shadow": 6,
+    },
+
+    # ── Instagram-style presets (uppercase, large, impact look) ───────────
+    # "impacto": white bold UPPERCASE with thick black outline — plain style
+    # (matches screenshot 2: "DE TODA ESTA" style)
+    "impacto": {
+        "PrimaryColour":  "&H00FFFFFF",
+        "SecondaryColour":"&H00DDDDDD",
+        "OutlineColour":  "&H00000000",
+        "BackColour":     "&H00000000",
+        "Bold": 1, "BorderStyle": 1, "Outline": 5, "Shadow": 2,
+        "_uppercase": True,
+        "_font_scale": 1.4,
+    },
+    # "rosa": white bold UPPERCASE on dark-rose rounded box — emphasis style
+    # (matches screenshot 1: "ESTA DROGA SIEMPRE / ES UN TEMA DE DEBATE" style)
+    # Box color: #8B2060 dark rose/burgundy → ASS BGR: B=0x60,G=0x20,R=0x8B → &H0060208B
+    "rosa": {
+        "PrimaryColour":  "&H00FFFFFF",
+        "SecondaryColour":"&H00FFFFFF",
+        "OutlineColour":  "&H0060208B",   # dark rose outline (same as box)
+        "BackColour":     "&H0060208B",   # dark rose/burgundy box background
+        "Bold": 1, "BorderStyle": 3,      # BorderStyle 3 = opaque filled box
+        "Outline": 14, "Shadow": 8,       # padding: 14px horizontal, 8px vertical
+        "_uppercase": True,
+        "_font_scale": 1.4,
+    },
 }
 
-st = PRESET_STYLES.get(PRESET, PRESET_STYLES["bold"])
+# Extract custom processing flags (not valid ASS fields) before building header
+st = dict(PRESET_STYLES.get(PRESET, PRESET_STYLES["bold"]))
+UPPERCASE_TEXT = st.pop("_uppercase", False)
+FONT_SCALE     = st.pop("_font_scale", 1.0)
+FONT_SIZE      = int(FONT_SIZE * FONT_SCALE)
 
 # Detect font available on system.
 # We store (file_path, font_family_name) pairs — libass needs the FAMILY name
@@ -268,6 +302,8 @@ for p in phrases:
         dur_cs = max(1, int((w["endMs"] - w["startMs"]) / 10))
         # Escape special ASS characters
         word_text = w["text"].replace("\\", "").replace("{", "").replace("}", "")
+        if UPPERCASE_TEXT:
+            word_text = word_text.upper()
         text_parts.append(f"{{\\k{dur_cs}}}{word_text}")
     text = " ".join(text_parts)
 

@@ -210,7 +210,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
     [project.id]
   );
 
-  const CAPTION_PRESETS = ["bold", "classic", "outline", "glow", "box", "minimal", "neon", "gradient", "karaoke"] as const;
+  const CAPTION_PRESETS = ["rosa", "impacto", "bold", "classic", "outline", "glow", "box", "minimal", "neon", "gradient", "karaoke"] as const;
 
   const hasVideo = !!project.source_video;
   const isProcessing = project.status === "processing" || !!jobId;
