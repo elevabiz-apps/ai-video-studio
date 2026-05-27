@@ -70,5 +70,20 @@ RUN chmod +x start.sh
 RUN mkdir -p public/assets public/renders
 
 EXPOSE 3000
-# start.sh links public/assets + public/renders to the Railway Volume, then starts Node
-CMD ["sh", "start.sh"]
+
+# Create a minimal startup wrapper that ensures Node.js can start
+RUN cat > /app/run.sh << 'EOF'
+#!/bin/sh
+DATA_DIR="${DATA_DIR:-/app/data}"
+mkdir -p "$DATA_DIR/assets" "$DATA_DIR/renders" "$DATA_DIR/db"
+rm -rf /app/public/assets /app/public/renders
+ln -s "$DATA_DIR/assets" /app/public/assets
+ln -s "$DATA_DIR/renders" /app/public/renders
+# Explicitly start Node with output unbuffered
+exec 2>&1
+/usr/local/bin/node /app/server.js
+EOF
+RUN chmod +x /app/run.sh
+
+# Use the minimal wrapper instead of start.sh
+CMD ["/app/run.sh"]
