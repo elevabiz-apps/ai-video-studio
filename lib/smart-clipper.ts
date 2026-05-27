@@ -154,7 +154,7 @@ Respondé ÚNICAMENTE con un JSON array válido (sin markdown, sin texto adicion
   let raw = "";
   try {
     const response = await getClient().messages.create({
-      model: "claude-sonnet-4-5",
+      model: "claude-sonnet-4-6",
       max_tokens: 1200,
       messages: [{ role: "user", content: prompt }],
     });
@@ -175,7 +175,7 @@ Respondé ÚNICAMENTE con un JSON array válido (sin markdown, sin texto adicion
         reason:   clip.reason ?? "",
         score:    Math.max(0, Math.min(100, Number(clip.score) || 0)),
       }))
-      .filter((c) => c.end_ms - c.start_ms >= 8_000); // at least 8s
+      .filter((c) => c.end_ms - c.start_ms >= 15_000); // at least 15s (TikTok/Reels minimum)
 
     // Remove overlapping clips — keep the one with the earlier start
     const nonOverlapping: SmartClip[] = [];

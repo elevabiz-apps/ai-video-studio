@@ -140,9 +140,12 @@ async function downloadAndProcess(
 
   console.log(`[drive-watcher] Downloaded ${filename} → ${localPath}`);
 
-  // Determine mode based on config or auto-detect
+  // Determine mode: filename prefix "MC" forces multiclip regardless of config
   let mode = config.default_mode;
-  if (mode === "auto") {
+  if (/^mc[_\s-]/i.test(filename)) {
+    mode = "clips";
+    console.log(`[drive-watcher] Filename starts with "MC" → forcing multiclip mode`);
+  } else if (mode === "auto") {
     // Auto-detect: use ffprobe to check dimensions
     mode = await detectVideoOrientation(localPath);
   }

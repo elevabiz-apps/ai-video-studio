@@ -17,7 +17,7 @@ export type ClipSegment = {
   text: string;
 };
 
-const MIN_CLIP_DURATION_MS = 8_000;  // clips shorter than 8s are discarded
+const MIN_CLIP_DURATION_MS = 15_000; // clips shorter than 15s are discarded (TikTok/Reels minimum)
 const MAX_CLIP_DURATION_MS = 90_000; // clips longer than 90s are force-split
 const GAP_THRESHOLD_MS = 1_500;      // silence > 1.5s between words = clip boundary
 

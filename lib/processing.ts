@@ -482,27 +482,41 @@ export async function spawnMultiClipPipeline(
 
     await deleteClipsByProject(projectId); // clear clips from any previous run
 
+    // Read project caption_preset (set from auto-config or user selection)
+    const project = await getProjectById(projectId);
+    const captionPreset = project?.caption_preset ?? "impacto_rosa";
+
+    // Enforce minimum gap (2s) between consecutive clips to avoid jarring cuts
+    const MIN_GAP_MS = 2_000;
+    const gappedSegments = segments.filter((seg, i) => {
+      if (i === 0) return true;
+      return seg.startMs - segments[i - 1].endMs >= MIN_GAP_MS;
+    });
+    if (gappedSegments.length < segments.length) {
+      console.log(`[pipeline] Removed ${segments.length - gappedSegments.length} clips too close to previous clip (<${MIN_GAP_MS}ms gap)`);
+    }
+
     // Step 9: Cut each clip from the (possibly reframed) processed video
     const finalBaseName = path.basename(finalVideoPath, ".mp4");
     const assetsDir = path.join(CWD, "public", "assets");
 
-    for (let i = 0; i < segments.length; i++) {
-      const progressPct = 92 + Math.round(((i + 1) / segments.length) * 7);
-      await updateJob("processing", progressPct, `Cortando clip ${i + 1} de ${segments.length}...`);
+    for (let i = 0; i < gappedSegments.length; i++) {
+      const progressPct = 92 + Math.round(((i + 1) / gappedSegments.length) * 7);
+      await updateJob("processing", progressPct, `Cortando clip ${i + 1} de ${gappedSegments.length}...`);
 
       const clipId = randomUUID();
-      const startSec = segments[i].startMs / 1000;
-      const endSec = segments[i].endMs / 1000;
-      const hook = segments[i].hook;
-      const reason = segments[i].reason;
+      const startSec = gappedSegments[i].startMs / 1000;
+      const endSec = gappedSegments[i].endMs / 1000;
+      const hook = gappedSegments[i].hook;
+      const reason = gappedSegments[i].reason;
 
       // Register clip in DB
       await createClip(clipId, projectId, startSec, endSec);
       await updateClipName(clipId, hook ?? `Clip ${i + 1}`);
       await updateClipSortOrder(clipId, i);
       if (hook) await updateClipHookPhrase(clipId, hook);
-      const clipScore = segments[i].score ?? 0;
-      if (reason || segments[i].score !== undefined) {
+      const clipScore = gappedSegments[i].score ?? 0;
+      if (reason || gappedSegments[i].score !== undefined) {
         await updateClipScore(clipId, clipScore, reason ?? "");
       }
 
@@ -515,9 +529,16 @@ export async function spawnMultiClipPipeline(
         await cutClip(finalVideoPath, clipAbsPath, startSec, endSec);
         await updateClipOutputPath(clipId, clipRelPath);
 
-        // Burn subtitles (non-fatal — replaces clip in-place on success)
+        // Burn subtitles using the project's caption preset (non-fatal)
         if (captionsJson) {
-          await burnSubtitles(clipAbsPath, segments[i].startMs, segments[i].endMs, captionsJson);
+          await burnSubtitles(
+            clipAbsPath,
+            gappedSegments[i].startMs,
+            gappedSegments[i].endMs,
+            captionsJson,
+            0,
+            captionPreset
+          );
         }
       } catch (cutErr) {
         console.warn(`Could not cut clip ${i + 1}:`, cutErr);
