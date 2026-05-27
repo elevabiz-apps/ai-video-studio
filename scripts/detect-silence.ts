@@ -9,8 +9,8 @@ import {writeFileSync} from "fs";
 import path from "path";
 
 const inputPath = process.argv[2];
-const noiseDb = process.argv[3] || "-30dB";
-const minDuration = process.argv[4] || "0.5";
+const noiseDb = process.argv[3] || "-40dB";
+const minDuration = process.argv[4] || "0.8";
 
 if (!inputPath) {
   console.error("Usage: npx tsx scripts/detect-silence.ts <video-path> [noise-db] [min-duration]");

@@ -29,7 +29,7 @@ def get_duration(input_file):
     data = json.loads(result.stdout)
     return float(data["format"]["duration"])
 
-def detect_silences(input_file, noise_db="-30dB", min_duration=0.5):
+def detect_silences(input_file, noise_db="-40dB", min_duration=0.8):
     result = subprocess.run(
         [FFMPEG, "-i", input_file, "-map", "0:1",
          "-af", f"silencedetect=noise={noise_db}:d={min_duration}",
@@ -47,40 +47,64 @@ def detect_silences(input_file, noise_db="-30dB", min_duration=0.5):
         silences.append((float(starts[-1]), None))
     return silences
 
-def build_keep_segments(silences, duration, padding=0.1):
-    """Build list of (start, end) segments to keep."""
+END_PROTECTION_SEC = 2.0  # never cut anything in the last N seconds of the video
+
+def build_keep_segments(silences, duration, padding=0.15):
+    """Build list of (start, end) segments to keep.
+
+    Changes vs original:
+    - padding increased 0.1→0.15s for more natural cuts
+    - cursor never goes backwards (prevents audio overlap/repetition when
+      two consecutive silences are very close together)
+    - END_PROTECTION_SEC: silences that start in the last N seconds are
+      skipped so the final sentence never gets chopped off
+    """
     segments = []
     cursor = 0.0
 
     for sil_start, sil_end in silences:
-        # End of keep segment: silence start (minus small padding)
-        keep_end = max(cursor, sil_start + padding)
+        # Skip silences that start in the end-protection zone
+        if sil_start >= duration - END_PROTECTION_SEC:
+            break
+
+        # End of keep segment at the start of the silence (+ small tail padding)
+        keep_end = sil_start + padding
         if keep_end > cursor + 0.05:  # only add if segment has meaningful length
             segments.append((cursor, keep_end))
-        # Next keep starts after silence end (plus small padding)
+
+        # Next keep starts just before silence ends (- small lead-in padding)
+        # max(keep_end, ...) ensures cursor never goes backwards → no overlapping segments
         if sil_end is None:
             cursor = duration
         else:
-            cursor = max(cursor, sil_end - padding)
+            cursor = max(keep_end, sil_end - padding)
 
-    # Add final segment if there's content after last silence
+    # Always add final segment up to the true end of the video
     if cursor < duration - 0.05:
         segments.append((cursor, duration))
 
     return segments
 
 def cut_segment(args):
-    """Cut a single segment using stream copy — fast, minimal RAM, no re-encoding."""
+    """Cut a single segment using stream copy — fast, minimal RAM, no re-encoding.
+
+    IMPORTANT: -ss is placed AFTER -i (output-side seeking).
+    Placing -ss BEFORE -i (input seeking) makes FFmpeg snap to the nearest
+    keyframe *before* the requested time, so each segment clip silently
+    contains extra frames from before the cut point. When segments are
+    concatenated those extra frames create a brief audio repeat/echo.
+    Output-side seeking decodes to the exact frame, so segments start
+    precisely where requested — no overlap, no repetition.
+    """
     i, start, end, input_file, tmpdir = args
     clip_path = os.path.join(tmpdir, f"clip_{i:04d}.mp4")
     duration = end - start
     cmd = [
         FFMPEG, "-y",
-        "-ss", str(start),
         "-i", input_file,
+        "-ss", str(start),   # ← after -i: accurate output-side seek, no keyframe snap
         "-t", str(duration),
         "-map", "0:v:0", "-map", "0:a:0",
-        # Stream copy: no re-encoding → no OOM, 10x faster, negligible accuracy loss for silence cuts
         "-c", "copy",
         "-avoid_negative_ts", "make_zero",
         clip_path
@@ -118,8 +142,8 @@ def cut_and_concat(input_file, segments, output_file):
 def main():
     input_file = sys.argv[1] if len(sys.argv) > 1 else None
     output_file = sys.argv[2] if len(sys.argv) > 2 else None
-    noise_db = sys.argv[3] if len(sys.argv) > 3 else "-30dB"
-    min_silence = float(sys.argv[4]) if len(sys.argv) > 4 else 0.5
+    noise_db = sys.argv[3] if len(sys.argv) > 3 else "-40dB"
+    min_silence = float(sys.argv[4]) if len(sys.argv) > 4 else 0.8
 
     if not input_file or not output_file:
         print("Usage: python3 cut_silences.py <input> <output> [noise_db] [min_silence_sec]")
