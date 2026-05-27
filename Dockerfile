@@ -71,5 +71,5 @@ RUN mkdir -p public/assets public/renders
 
 EXPOSE 3000
 
-# Run start.sh to set up volumes and symlinks, then start Node.js server
-CMD ["sh", "-c", "DATA_DIR=/app/data && mkdir -p $DATA_DIR/assets $DATA_DIR/renders $DATA_DIR/db && rm -rf /app/public/assets /app/public/renders && ln -s $DATA_DIR/assets /app/public/assets && ln -s $DATA_DIR/renders /app/public/renders && exec node /app/server.js"]
+# Volume setup and server startup
+CMD ["/bin/sh", "-c", "set -e; mkdir -p /app/data/assets /app/data/renders /app/data/db; rm -rf /app/public/assets /app/public/renders; ln -s /app/data/assets /app/public/assets; ln -s /app/data/renders /app/public/renders; node /app/server.js"]
