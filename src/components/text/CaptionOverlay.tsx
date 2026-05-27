@@ -99,7 +99,7 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
   captionsData,
   preset = "impacto_rosa",
   position = "bottom",
-  fontSize = 64,
+  fontSize = 48,
   fontFamily = FONT_FAMILIES.heading,
   highlightColor = "#39E508",
   textColor = "#ffffff",
@@ -154,7 +154,7 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
   const basePositionStyle: React.CSSProperties = {
     top: {top: 80},
     center: {top: "50%", extraTransform: "translateY(-50%)"},
-    bottom: {bottom: 120},
+    bottom: {bottom: "35%"},
   }[position] as React.CSSProperties;
 
   // Merge custom style overrides

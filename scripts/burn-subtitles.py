@@ -28,7 +28,7 @@ COMPOSITOR_DIR = sys.argv[6]
 OFFSET_MS      = float(sys.argv[7]) if len(sys.argv) > 7 else 0
 PRESET         = sys.argv[8] if len(sys.argv) > 8 else "bold"
 
-MAX_WORDS = 6
+MAX_WORDS = 3
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -119,7 +119,7 @@ try:
 except Exception:
     pass
 
-FONT_SIZE = max(36, vid_height // 22)
+FONT_SIZE = max(24, vid_height // 28)
 
 # ASS colours: &HAABBGGRR  (alpha, blue, green, red)
 # _uppercase: True → convert all subtitle text to UPPERCASE
@@ -287,10 +287,11 @@ ScriptType: v4.00+
 PlayResX: {vid_width}
 PlayResY: {vid_height}
 ScaledBorderAndShadow: yes
+WrapStyle: 2
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{FONT_SIZE},{st['PrimaryColour']},{st['SecondaryColour']},{st['OutlineColour']},{st['BackColour']},{st['Bold']},0,0,0,100,100,0,0,{st['BorderStyle']},{st['Outline']},{st['Shadow']},2,10,10,{int(vid_height * 0.15)},1
+Style: Default,{font_name},{FONT_SIZE},{st['PrimaryColour']},{st['SecondaryColour']},{st['OutlineColour']},{st['BackColour']},{st['Bold']},0,0,0,100,100,0,0,{st['BorderStyle']},{st['Outline']},{st['Shadow']},2,10,10,{int(vid_height * 0.35)},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
