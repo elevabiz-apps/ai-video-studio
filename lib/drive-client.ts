@@ -24,13 +24,12 @@ const REDIRECT_URI = (origin?: string) => {
 };
 
 // Scopes needed:
-//   drive.readonly  → list and download files the user owns
-//   drive.metadata.write → rename/update metadata of any file (needed for markFileAsProcessed)
-// NOTE: drive.file would only allow access to files created by this app — insufficient for
-// renaming videos the user uploaded manually.
+//   drive.readonly → list and download files the user owns/shared with them
+// NOTE: We intentionally request only ONE scope to keep OAuth consent screen setup
+// as simple as possible. Processed files are tracked via the drive_sync_log DB table
+// (not by renaming them in Drive), so no write access is needed.
 const SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
-  "https://www.googleapis.com/auth/drive.metadata", // read + write metadata (rename, update)
 ];
 
 // ─── OAuth2 Client ───────────────────────────────────────────────────────────
@@ -223,19 +222,14 @@ export async function getFileMetadata(fileId: string): Promise<DriveFile> {
 }
 
 /**
- * Rename a file in Drive (used to mark processed files).
- * Prepends "✅ " to the filename.
+ * Mark a file as processed.
+ * Previously renamed the file in Drive (required drive.metadata scope).
+ * Now a no-op: processed files are tracked exclusively via drive_sync_log in the DB,
+ * which is the primary deduplication check in drive-watcher.ts (line ~72).
+ * This keeps OAuth to drive.readonly only — no write permissions needed.
  */
-export async function markFileAsProcessed(fileId: string): Promise<void> {
-  const drive = await getAuthenticatedDrive();
-  const meta = await getFileMetadata(fileId);
-
-  if (!meta.name.startsWith("✅")) {
-    await drive.files.update({
-      fileId,
-      requestBody: { name: `✅ ${meta.name}` },
-    });
-  }
+export async function markFileAsProcessed(_fileId: string): Promise<void> {
+  // Tracking is handled by drive_sync_log DB table — no Drive API call needed.
 }
 
 /**
