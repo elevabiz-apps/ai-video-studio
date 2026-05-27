@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 type ConnectionStatus = {
   drive: { configured: boolean; authenticated: boolean };
@@ -195,31 +195,7 @@ export default function SettingsPage() {
 
       {/* Auto-Config Tab */}
       {activeTab === "auto-config" && (
-        <div>
-          <p style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 20, lineHeight: 1.6 }}>
-            Configuraciones de procesamiento automático para carpetas de Google Drive.
-            Los videos nuevos se detectan cada 5 minutos y se procesan según estos ajustes.
-          </p>
-
-          {configs.length === 0 ? (
-            <div style={{
-              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
-              padding: 32, textAlign: "center",
-            }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>⚙️</div>
-              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Sin configuraciones</div>
-              <div style={{ color: "var(--muted-foreground)", fontSize: 13, maxWidth: 400, margin: "0 auto" }}>
-                Conectá Google Drive y creá una configuración vía <code style={{ background: "var(--muted)", padding: "1px 4px", borderRadius: 4 }}>POST /api/auto-config</code> para automatizar el procesamiento.
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {configs.map((c) => (
-                <AutoConfigCard key={c.id} config={c} />
-              ))}
-            </div>
-          )}
-        </div>
+        <AutoConfigTab configs={configs} setConfigs={setConfigs} />
       )}
     </div>
   );
@@ -334,29 +310,195 @@ function ProfileCard({ profile, onDelete, deleting }: { profile: ContentProfile;
   );
 }
 
-function AutoConfigCard({ config }: { config: AutoConfig }) {
-  const platforms = safeJsonParse(config.platforms, []);
+type SyncEntry = {
+  id: string;
+  drive_file_id: string;
+  filename: string;
+  status: string;
+  project_id: string | null;
+  error: string | null;
+  created_at: string;
+};
+
+function AutoConfigTab({ configs, setConfigs }: { configs: AutoConfig[]; setConfigs: React.Dispatch<React.SetStateAction<AutoConfig[]>> }) {
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<{ newFiles: number; errors: string[] } | null>(null);
+  const [syncLog, setSyncLog] = useState<SyncEntry[]>([]);
+  const [loadingLog, setLoadingLog] = useState(false);
+
+  useEffect(() => {
+    setLoadingLog(true);
+    fetch("/api/drive-sync")
+      .then(r => r.json())
+      .then(d => setSyncLog(d.entries || []))
+      .catch(() => {})
+      .finally(() => setLoadingLog(false));
+  }, []);
+
+  const handleCheckNow = async () => {
+    setChecking(true);
+    setCheckResult(null);
+    try {
+      const res = await fetch("/api/cron/check-drive");
+      const data = await res.json();
+      setCheckResult(data);
+      // Refresh sync log
+      const logRes = await fetch("/api/drive-sync");
+      const logData = await logRes.json();
+      setSyncLog(logData.entries || []);
+    } catch {
+      setCheckResult({ newFiles: 0, errors: ["Error al conectar con el servidor"] });
+    }
+    setChecking(false);
+  };
+
+  const handleToggle = async (config: AutoConfig) => {
+    const newEnabled = !config.enabled;
+    await fetch("/api/auto-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: config.id, enabled: newEnabled }),
+    });
+    setConfigs(prev => prev.map(c => c.id === config.id ? { ...c, enabled: newEnabled ? 1 : 0 } : c));
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("¿Eliminar esta configuración?")) return;
+    await fetch(`/api/auto-config?id=${id}`, { method: "DELETE" });
+    setConfigs(prev => prev.filter(c => c.id !== id));
+  };
+
+  const statusColor: Record<string, string> = {
+    detected: "#f59e0b", downloading: "#3b82f6", processing: "#8b5cf6",
+    pending_review: "#f59e0b", approved: "#22c55e", publishing: "#3b82f6",
+    published: "#22c55e", failed: "#ef4444",
+  };
+
   return (
-    <div style={{
-      background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ fontWeight: 700, fontSize: 14 }}>📁 {config.drive_folder_name || "Carpeta"}</div>
-        <span style={{
-          fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 12,
-          background: config.enabled ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-          color: config.enabled ? "#22c55e" : "#ef4444",
-        }}>
-          {config.enabled ? "Activo" : "Inactivo"}
-        </span>
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.6, margin: 0 }}>
+          Carpetas de Drive monitoreadas. Los videos nuevos se detectan cada 5 minutos.
+        </p>
+        <button
+          onClick={handleCheckNow}
+          disabled={checking}
+          style={{
+            padding: "8px 16px", fontSize: 13, fontWeight: 600, borderRadius: 8, border: "none",
+            background: "var(--accent)", color: "white", cursor: checking ? "wait" : "pointer",
+            opacity: checking ? 0.7 : 1, whiteSpace: "nowrap",
+          }}
+        >
+          {checking ? "⏳ Verificando..." : "🔍 Verificar ahora"}
+        </button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-        <MiniStat label="Modo" value={config.default_mode} />
-        <MiniStat label="Preset" value={config.caption_preset} />
-        <MiniStat label="Estrategia" value={config.schedule_strategy} />
-        <MiniStat label="Posts/día" value={`${config.posts_per_day}`} />
-        <MiniStat label="Días spread" value={`${config.spread_days}`} />
-        <MiniStat label="Plataformas" value={platforms.length > 0 ? platforms.map(String).join(", ") : "ninguna"} />
+
+      {checkResult && (
+        <div style={{
+          background: checkResult.errors.length > 0 ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)",
+          border: `1px solid ${checkResult.errors.length > 0 ? "#ef4444" : "#22c55e"}`,
+          borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13,
+        }}>
+          {checkResult.errors.length > 0
+            ? `⚠️ ${checkResult.errors.join(", ")}`
+            : checkResult.newFiles > 0
+              ? `✅ Se encontraron ${checkResult.newFiles} nuevo(s) video(s) en Drive.`
+              : "✅ Sin videos nuevos. Drive está al día."}
+        </div>
+      )}
+
+      {configs.length === 0 ? (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: 32, textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📁</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Sin carpetas configuradas</div>
+          <div style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
+            Conectá Google Drive primero y luego configurá una carpeta.
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+          {configs.map((c) => {
+            const platforms = safeJsonParse(c.platforms, []);
+            return (
+              <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>📁 {c.drive_folder_name || "Carpeta"}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2, fontFamily: "monospace" }}>
+                      ID: {c.drive_folder_id}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button
+                      onClick={() => handleToggle(c)}
+                      style={{
+                        padding: "4px 12px", fontSize: 12, fontWeight: 600, borderRadius: 20, border: "none",
+                        background: c.enabled ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                        color: c.enabled ? "#22c55e" : "#ef4444", cursor: "pointer",
+                      }}
+                    >
+                      {c.enabled ? "● Activo" : "○ Inactivo"}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--muted-foreground)", cursor: "pointer" }}
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                  <MiniStat label="Modo" value={c.default_mode} />
+                  <MiniStat label="Preset subtítulos" value={c.caption_preset} />
+                  <MiniStat label="Estrategia" value={c.schedule_strategy} />
+                  <MiniStat label="Posts/día" value={`${c.posts_per_day}`} />
+                  <MiniStat label="Días spread" value={`${c.spread_days}`} />
+                  <MiniStat label="Plataformas" value={platforms.length > 0 ? platforms.map(String).join(", ") : "sin definir"} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Sync log */}
+      <div style={{ marginTop: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>📋 Historial de sincronización</div>
+        {loadingLog ? (
+          <div style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cargando...</div>
+        ) : syncLog.length === 0 ? (
+          <div style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
+            Ningún archivo detectado todavía. Subí un video a la carpeta de Drive y esperá el próximo ciclo.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {syncLog.slice(0, 10).map(entry => (
+              <div key={entry.id} style={{
+                background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
+                padding: "10px 14px", display: "flex", alignItems: "center", gap: 12,
+              }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10, whiteSpace: "nowrap",
+                  background: `${statusColor[entry.status] ?? "#888"}22`,
+                  color: statusColor[entry.status] ?? "#888",
+                }}>
+                  {entry.status}
+                </span>
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {entry.filename}
+                </div>
+                {entry.project_id && (
+                  <a href={`/projects/${entry.project_id}`} style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none" }}>
+                    Ver proyecto →
+                  </a>
+                )}
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
+                  {new Date(entry.created_at).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
