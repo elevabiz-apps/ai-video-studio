@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    await exchangeCodeForTokens(code);
+    await exchangeCodeForTokens(code, req.nextUrl.origin);
 
     // Redirect back to the app with success indicator
     const baseUrl = req.nextUrl.origin;

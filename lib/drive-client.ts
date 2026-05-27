@@ -14,8 +14,14 @@ import type { Readable } from "stream";
 
 const CLIENT_ID = () => process.env.GOOGLE_CLIENT_ID ?? "";
 const CLIENT_SECRET = () => process.env.GOOGLE_CLIENT_SECRET ?? "";
-const REDIRECT_URI = () =>
-  process.env.GOOGLE_REDIRECT_URI ?? "http://localhost:3001/api/auth/google/callback";
+const REDIRECT_URI = (origin?: string) => {
+  // Explicit env var always wins
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
+  // If called with the request origin (production), build it from there
+  if (origin) return `${origin}/api/auth/google/callback`;
+  // Fallback for local dev
+  return "http://localhost:3001/api/auth/google/callback";
+};
 
 // Scopes needed:
 //   drive.readonly  → list and download files the user owns
@@ -29,16 +35,17 @@ const SCOPES = [
 
 // ─── OAuth2 Client ───────────────────────────────────────────────────────────
 
-function createOAuth2Client() {
-  return new google.auth.OAuth2(CLIENT_ID(), CLIENT_SECRET(), REDIRECT_URI());
+function createOAuth2Client(origin?: string) {
+  return new google.auth.OAuth2(CLIENT_ID(), CLIENT_SECRET(), REDIRECT_URI(origin));
 }
 
 /**
  * Generate the Google OAuth consent URL.
- * The user visits this URL, grants access, and is redirected back with a code.
+ * Pass `origin` (e.g. "https://myapp.railway.app") to build the correct redirect_uri
+ * dynamically when GOOGLE_REDIRECT_URI is not set.
  */
-export function getAuthUrl(): string {
-  const client = createOAuth2Client();
+export function getAuthUrl(origin?: string): string {
+  const client = createOAuth2Client(origin);
   return client.generateAuthUrl({
     access_type: "offline", // get refresh_token
     prompt: "consent",
@@ -49,8 +56,8 @@ export function getAuthUrl(): string {
 /**
  * Exchange an authorization code for tokens and persist them.
  */
-export async function exchangeCodeForTokens(code: string) {
-  const client = createOAuth2Client();
+export async function exchangeCodeForTokens(code: string, origin?: string) {
+  const client = createOAuth2Client(origin);
   const { tokens } = await client.getToken(code);
 
   googleTokenQueries.upsert({
