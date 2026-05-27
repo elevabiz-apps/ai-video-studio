@@ -22,11 +22,27 @@ const nextConfig: NextConfig = {
   // Exclude massive Remotion packages from standalone file tracing.
   // Without this, "Collecting build traces" hangs indefinitely because
   // Remotion includes huge native binaries that the tracer can't finish scanning.
+  // Exclude large/build-only packages from standalone file tracing.
+  // Without this, "Collecting build traces" hangs indefinitely.
+  // NOTE: The Dockerfile copies the full node_modules over the standalone
+  // output, so all packages remain available at runtime regardless.
   outputFileTracingExcludes: {
     "*": [
+      // Remotion: native compositor binaries + large package tree
       "node_modules/remotion/**",
       "node_modules/@remotion/**",
+      // googleapis: 194MB auto-generated clients for every Google API
+      "node_modules/googleapis/**",
+      "node_modules/google-apis-common/**",
+      // Build tools (not needed at runtime)
+      "node_modules/typescript/**",
+      "node_modules/@esbuild/**",
+      "node_modules/@rspack/**",
+      "node_modules/tsx/**",
+      "node_modules/@types/**",
+      // Other heavy packages not needed in the standalone bundle
       "node_modules/@imgly/**",
+      "node_modules/@img/**",
       "node_modules/sharp/**",
       "node_modules/fluent-ffmpeg/**",
     ],
