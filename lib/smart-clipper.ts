@@ -1,24 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
-import fs from "fs";
-import path from "path";
 import type { ContentProfile } from "./db";
 import { getProfileContext } from "./profile-builder";
 
-/** Read ANTHROPIC_API_KEY from process.env or directly from .env.local as fallback */
-function resolveApiKey(): string | undefined {
-  if (process.env.ANTHROPIC_API_KEY?.trim()) return process.env.ANTHROPIC_API_KEY.trim();
-  try {
-    const envFile = fs.readFileSync(path.join(process.cwd(), ".env.local"), "utf-8");
-    const match = envFile.match(/^ANTHROPIC_API_KEY=(.+)$/m);
-    return match?.[1]?.trim() || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function getClient(): Anthropic {
-  const apiKey = resolveApiKey();
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not found in env or .env.local");
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY environment variable not set");
   return new Anthropic({ apiKey });
 }
 
