@@ -28,7 +28,7 @@ COMPOSITOR_DIR = sys.argv[6]
 OFFSET_MS      = float(sys.argv[7]) if len(sys.argv) > 7 else 0
 PRESET         = sys.argv[8] if len(sys.argv) > 8 else "bold"
 
-MAX_WORDS = 3
+MAX_WORDS = 2
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -200,20 +200,19 @@ PRESET_STYLES = {
         "BackColour":     "&H00000000",
         "Bold": 1, "BorderStyle": 1, "Outline": 5, "Shadow": 2,
         "_uppercase": True,
-        "_font_scale": 1.4,
+        "_font_scale": 1.1,
     },
     # "rosa": white bold UPPERCASE on dark-rose rounded box — emphasis style
-    # (matches screenshot 1: "ESTA DROGA SIEMPRE / ES UN TEMA DE DEBATE" style)
     # Box color: #8B2060 dark rose/burgundy → ASS BGR: B=0x60,G=0x20,R=0x8B → &H0060208B
     "rosa": {
         "PrimaryColour":  "&H00FFFFFF",
         "SecondaryColour":"&H00FFFFFF",
-        "OutlineColour":  "&H0060208B",   # dark rose outline (same as box)
-        "BackColour":     "&H0060208B",   # dark rose/burgundy box background
-        "Bold": 1, "BorderStyle": 3,      # BorderStyle 3 = opaque filled box
-        "Outline": 14, "Shadow": 8,       # padding: 14px horizontal, 8px vertical
+        "OutlineColour":  "&H0060208B",
+        "BackColour":     "&H0060208B",
+        "Bold": 1, "BorderStyle": 3,
+        "Outline": 12, "Shadow": 6,
         "_uppercase": True,
-        "_font_scale": 1.4,
+        "_font_scale": 1.1,
     },
     # "impacto_rosa": karaoke hybrid — most words in white UPPERCASE (impacto style),
     # active word highlighted in Instagram pink (#E1306C → ASS BGR &H006C30E1).
@@ -225,7 +224,7 @@ PRESET_STYLES = {
         "BackColour":     "&H00000000",
         "Bold": 1, "BorderStyle": 1, "Outline": 5, "Shadow": 2,
         "_uppercase": True,
-        "_font_scale": 1.4,
+        "_font_scale": 1.1,
     },
 }
 

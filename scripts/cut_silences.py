@@ -86,26 +86,29 @@ def build_keep_segments(silences, duration, padding=0.15):
     return segments
 
 def cut_segment(args):
-    """Cut a single segment using stream copy — fast, minimal RAM, no re-encoding.
+    """Cut a single segment with fast input seek + re-encode for frame-accurate A/V sync.
 
-    IMPORTANT: -ss is placed AFTER -i (output-side seeking).
-    Placing -ss BEFORE -i (input seeking) makes FFmpeg snap to the nearest
-    keyframe *before* the requested time, so each segment clip silently
-    contains extra frames from before the cut point. When segments are
-    concatenated those extra frames create a brief audio repeat/echo.
-    Output-side seeking decodes to the exact frame, so segments start
-    precisely where requested — no overlap, no repetition.
+    Stream copy (-c copy) with output-side seeking maintains accurate timing but
+    the video stream must start at a keyframe boundary. When the keyframe falls
+    *before* the cut point, the video track starts earlier than the audio track,
+    creating A/V desync that accumulates across concatenated segments.
+
+    Fix: use input-side seeking (-ss before -i) + libx264 ultrafast re-encoding.
+    FFmpeg decodes from the nearest keyframe, then re-encodes from the exact start
+    point, so both video and audio start at the same timestamp — no desync.
+    Ultrafast is ~10x faster than the default preset with minimal quality loss.
     """
     i, start, end, input_file, tmpdir = args
     clip_path = os.path.join(tmpdir, f"clip_{i:04d}.mp4")
     duration = end - start
     cmd = [
         FFMPEG, "-y",
+        "-ss", str(start),          # ← before -i: fast input seek to nearest keyframe
         "-i", input_file,
-        "-ss", str(start),   # ← after -i: accurate output-side seek, no keyframe snap
         "-t", str(duration),
         "-map", "0:v:0", "-map", "0:a:0",
-        "-c", "copy",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20",
+        "-c:a", "aac", "-b:a", "128k",
         "-avoid_negative_ts", "make_zero",
         clip_path
     ]
