@@ -319,6 +319,7 @@ export const jobQueries = {
 // Render queries
 export const renderQueries = {
   get getByProject() { return getDb().prepare<[string], Render>("SELECT * FROM renders WHERE project_id = ? ORDER BY created_at DESC"); },
+  get getAll() { return getDb().prepare<[], Render>("SELECT * FROM renders ORDER BY created_at DESC"); },
   get create() { return getDb().prepare<[string, string, string], void>("INSERT INTO renders (id, project_id, platform) VALUES (?, ?, ?)"); },
   get update() { return getDb().prepare<[string, number, string | null, string], void>("UPDATE renders SET status = ?, progress = ?, output_path = ? WHERE id = ?"); },
 };
@@ -326,6 +327,7 @@ export const renderQueries = {
 // Clip queries
 export const clipQueries = {
   get getByProject() { return getDb().prepare<[string], Clip>("SELECT * FROM clips WHERE project_id = ? ORDER BY sort_order ASC"); },
+  get getAll() { return getDb().prepare<[], Clip>("SELECT * FROM clips ORDER BY sort_order ASC"); },
   get create() { return getDb().prepare<[string, string, number, number], void>("INSERT INTO clips (id, project_id, start_seconds, end_seconds) VALUES (?, ?, ?, ?)"); },
   get updateScore() { return getDb().prepare<[number, string, string], void>("UPDATE clips SET ai_score = ?, ai_reasoning = ? WHERE id = ?"); },
   get updateName() { return getDb().prepare<[string, string], void>("UPDATE clips SET name = ? WHERE id = ?"); },

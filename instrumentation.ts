@@ -37,7 +37,26 @@ export async function register() {
     console.warn("[startup] Render cleanup failed:", err);
   }
 
-  // ── 2. Drive watcher cron — every 5 minutes ───────────────────────────────
+  // ── 2. Disk cleanup cron — every 6 hours ─────────────────────────────────
+  const runCleanup = async () => {
+    try {
+      const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+        : "http://localhost:3000";
+      const res = await fetch(`${baseUrl}/api/cron/cleanup`);
+      const data = await res.json() as { message?: string };
+      console.log("[cleanup-cron]", data.message ?? "done");
+    } catch (err) {
+      console.error("[cleanup-cron] Error:", err);
+    }
+  };
+
+  // Run 5 minutes after startup, then every 6 hours
+  setTimeout(runCleanup, 5 * 60 * 1000);
+  setInterval(runCleanup, 6 * 60 * 60 * 1000);
+  console.log("[cleanup-cron] Disk cleanup scheduled every 6 hours.");
+
+  // ── 3. Drive watcher cron — every 5 minutes ───────────────────────────────
   // Only start if Google Drive is configured (env vars present).
   const hasGoogleConfig = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
   if (!hasGoogleConfig) {
