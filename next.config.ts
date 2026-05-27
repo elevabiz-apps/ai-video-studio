@@ -19,11 +19,10 @@ const nextConfig: NextConfig = {
     "fluent-ffmpeg",
     "sharp",
   ],
-  // Exclude massive Remotion packages from standalone file tracing.
-  // Without this, "Collecting build traces" hangs indefinitely because
-  // Remotion includes huge native binaries that the tracer can't finish scanning.
   // Exclude large/build-only packages from standalone file tracing.
-  // Without this, "Collecting build traces" hangs indefinitely.
+  // Without this, "Collecting build traces" hangs indefinitely because
+  // the tracer scans hundreds of MB of package files (Remotion binaries,
+  // googleapis auto-generated clients, etc.).
   // NOTE: The Dockerfile copies the full node_modules over the standalone
   // output, so all packages remain available at runtime regardless.
   outputFileTracingExcludes: {
