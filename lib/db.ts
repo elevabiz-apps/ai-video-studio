@@ -39,6 +39,9 @@ function getDb(): InstanceType<typeof Database> {
   try { _db.exec(`ALTER TABLE projects ADD COLUMN original_video TEXT`); } catch { /* already exists */ }
   try { _db.exec(`ALTER TABLE jobs ADD COLUMN completed_steps TEXT DEFAULT '[]'`); } catch { /* already exists */ }
   try { _db.exec(`ALTER TABLE content_profiles ADD COLUMN is_primary INTEGER DEFAULT 0`); } catch { /* already exists */ }
+  // Normalise caption_preset: replace legacy 'bold' with 'impacto_rosa' everywhere
+  try { _db.exec(`UPDATE projects     SET caption_preset = 'impacto_rosa' WHERE caption_preset = 'bold'`); } catch { /* ignore */ }
+  try { _db.exec(`UPDATE auto_configs SET caption_preset = 'impacto_rosa' WHERE caption_preset = 'bold'`); } catch { /* ignore */ }
 
   // Initialize schema
   _db.exec(`
