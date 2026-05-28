@@ -18,7 +18,6 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
   const [pollStartTime] = useState(() => Date.now());
   const [publishingClip, setPublishingClip] = useState<Clip | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [expandedClipId, setExpandedClipId] = useState<string | null>(null);
   const [copiedClipId, setCopiedClipId] = useState<string | null>(null);
 
   // Sync when parent refreshes clips (e.g. after pipeline completes)
@@ -299,17 +298,17 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
                     {/* Play + Copy + Download */}
                     <div style={{ display: "flex", gap: 4 }}>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setExpandedClipId(expandedClipId === clip.id ? null : clip.id); }}
-                        title={expandedClipId === clip.id ? "Cerrar preview" : "Ver clip"}
+                        onClick={(e) => { e.stopPropagation(); onSelectClip?.(clip); }}
+                        title="Ver en panel derecho"
                         style={{
                           width: 26, height: 26, borderRadius: 6, border: "none",
-                          background: expandedClipId === clip.id ? "rgba(99,102,241,0.15)" : "var(--card)",
-                          color: expandedClipId === clip.id ? "#6366f1" : "var(--muted-foreground)",
+                          background: selectedClipId === clip.id ? "rgba(99,102,241,0.15)" : "var(--card)",
+                          color: selectedClipId === clip.id ? "#6366f1" : "var(--muted-foreground)",
                           cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center",
-                          outline: expandedClipId === clip.id ? "1px solid rgba(99,102,241,0.3)" : "1px solid var(--border)",
+                          outline: selectedClipId === clip.id ? "1px solid rgba(99,102,241,0.3)" : "1px solid var(--border)",
                         }}
                       >
-                        {expandedClipId === clip.id ? "⏹" : "▶"}
+                        ▶
                       </button>
                       {captionsJson && (
                         <button
@@ -418,17 +417,6 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
               </div>
             )}
 
-            {/* Inline video player */}
-            {expandedClipId === clip.id && isCut && (
-              <div style={{ padding: "0 12px 12px", borderTop: reasonText ? "none" : "1px solid var(--border)" }}>
-                <video
-                  controls
-                  autoPlay
-                  src={`/${clip.output_path}`}
-                  style={{ width: "100%", borderRadius: 8, maxHeight: 400, background: "#000", display: "block" }}
-                />
-              </div>
-            )}
           </div>
         );
       })}
