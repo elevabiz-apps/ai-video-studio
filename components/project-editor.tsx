@@ -507,6 +507,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
                 isReady={isReady}
                 onSelectClip={setSelectedClip}
                 selectedClipId={selectedClip?.id ?? null}
+                captionsJson={project.captions}
               />
             </StepSection>
           ) : (

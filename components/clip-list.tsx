@@ -10,13 +10,16 @@ interface ClipListProps {
   isReady: boolean;
   onSelectClip?: (clip: Clip) => void;
   selectedClipId?: string | null;
+  captionsJson?: string | null;
 }
 
-export default function ClipList({ projectId, initialClips, isReady, onSelectClip, selectedClipId }: ClipListProps) {
+export default function ClipList({ projectId, initialClips, isReady, onSelectClip, selectedClipId, captionsJson }: ClipListProps) {
   const [clips, setClips] = useState<Clip[]>(initialClips);
   const [pollStartTime] = useState(() => Date.now());
   const [publishingClip, setPublishingClip] = useState<Clip | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [expandedClipId, setExpandedClipId] = useState<string | null>(null);
+  const [copiedClipId, setCopiedClipId] = useState<string | null>(null);
 
   // Sync when parent refreshes clips (e.g. after pipeline completes)
   useEffect(() => {
@@ -293,7 +296,45 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
                       </button>
                     </div>
 
-                    {/* Download + Publish */}
+                    {/* Play + Copy + Download */}
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setExpandedClipId(expandedClipId === clip.id ? null : clip.id); }}
+                        title={expandedClipId === clip.id ? "Cerrar preview" : "Ver clip"}
+                        style={{
+                          width: 26, height: 26, borderRadius: 6, border: "none",
+                          background: expandedClipId === clip.id ? "rgba(99,102,241,0.15)" : "var(--card)",
+                          color: expandedClipId === clip.id ? "#6366f1" : "var(--muted-foreground)",
+                          cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center",
+                          outline: expandedClipId === clip.id ? "1px solid rgba(99,102,241,0.3)" : "1px solid var(--border)",
+                        }}
+                      >
+                        {expandedClipId === clip.id ? "⏹" : "▶"}
+                      </button>
+                      {captionsJson && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const text = getClipTranscript(captionsJson, clip.start_seconds, clip.end_seconds);
+                            const caption = clip.hook_phrase ? `${clip.hook_phrase}\n\n${text}` : text;
+                            navigator.clipboard.writeText(caption).then(() => {
+                              setCopiedClipId(clip.id);
+                              setTimeout(() => setCopiedClipId(null), 2000);
+                            });
+                          }}
+                          title="Copiar caption"
+                          style={{
+                            width: 26, height: 26, borderRadius: 6, border: "none",
+                            background: copiedClipId === clip.id ? "rgba(34,197,94,0.15)" : "var(--card)",
+                            color: copiedClipId === clip.id ? "#22c55e" : "var(--muted-foreground)",
+                            cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center",
+                            outline: copiedClipId === clip.id ? "1px solid rgba(34,197,94,0.3)" : "1px solid var(--border)",
+                          }}
+                        >
+                          {copiedClipId === clip.id ? "✓" : "📋"}
+                        </button>
+                      )}
+                    </div>
                     <a
                       href={`/api/${clip.output_path}`}
                       download
@@ -376,6 +417,18 @@ export default function ClipList({ projectId, initialClips, isReady, onSelectCli
                 💡 {reasonText}
               </div>
             )}
+
+            {/* Inline video player */}
+            {expandedClipId === clip.id && isCut && (
+              <div style={{ padding: "0 12px 12px", borderTop: reasonText ? "none" : "1px solid var(--border)" }}>
+                <video
+                  controls
+                  autoPlay
+                  src={`/${clip.output_path}`}
+                  style={{ width: "100%", borderRadius: 8, maxHeight: 400, background: "#000", display: "block" }}
+                />
+              </div>
+            )}
           </div>
         );
       })}
@@ -411,4 +464,23 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Extract the transcript text for a clip's time range from the captions JSON.
+ * Captions are stored as an array of { text, startMs, endMs } tokens.
+ */
+function getClipTranscript(captionsJson: string, startSec: number, endSec: number): string {
+  try {
+    const captions: { text: string; startMs: number; endMs: number }[] = JSON.parse(captionsJson);
+    const startMs = startSec * 1000;
+    const endMs = endSec * 1000;
+    return captions
+      .filter((c) => c.startMs >= startMs && c.endMs <= endMs)
+      .map((c) => c.text)
+      .join("")
+      .trim();
+  } catch {
+    return "";
+  }
 }
