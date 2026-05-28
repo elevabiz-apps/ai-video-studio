@@ -63,6 +63,68 @@ function buildLabeledTranscript(tokens: Token[]): {
   return { lines, startMsValues };
 }
 
+// ─── Intro detection ─────────────────────────────────────────────────────────
+
+/**
+ * Deterministically detects where the intro zone ends in a transcript.
+ *
+ * Scans lines in order looking for greeting/presentation patterns.
+ * Returns the startMs of the first NON-intro line after two consecutive
+ * non-intro lines are found following at least one intro line.
+ * Returns 0 if no intro is detected (no filtering needed).
+ */
+function detectIntroEndMs(tokens: Token[]): number {
+  if (tokens.length === 0) return 0;
+
+  const INTRO_REGEXES = [
+    /\b(hola|hey)\b/i,
+    /\b(muy\s+buen[ao]s?(\s+(días?|tardes?|noches?))?)\b/i,
+    /\b(buen[ao]s?\s+(días?|tardes?|noches?))\b/i,
+    /\b(bienvenidos?|qué\s+tal|cómo\s+están|como\s+están)\b/i,
+    /\b(en\s+el\s+(video|episodio)\s+de\s+hoy|hoy\s+vamos\s+a\s+(ver|hablar|tratar))\b/i,
+    /\b(en\s+este\s+(video|episodio|capítulo))\b/i,
+    /\b(mi\s+nombre\s+es|me\s+llamo|les?\s+habla)\b/i,
+    /\b(antes\s+de\s+empezar|no\s+olvid[eé]n?s?\s+suscrib)\b/i,
+    /\b(gracias\s+por\s+(estar|acompañar))\b/i,
+    /\b(les?\s+traigo|hoy\s+(les?|te)\s+(traigo|enseño|cuento))\b/i,
+  ];
+
+  const isIntroLine = (text: string): boolean =>
+    INTRO_REGEXES.some((r) => r.test(text));
+
+  const { lines, startMsValues } = buildLabeledTranscript(tokens);
+  const MAX_INTRO_SCAN_MS = 3 * 60 * 1000; // only scan first 3 minutes
+
+  let foundIntro = false;
+  let consecutiveNonIntro = 0;
+  let firstNonIntroMs = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (startMsValues[i] > MAX_INTRO_SCAN_MS) break;
+
+    const text = lines[i].replace(/^\[\d+\]\s*/, "");
+    const isIntro = isIntroLine(text);
+
+    if (isIntro) {
+      foundIntro = true;
+      consecutiveNonIntro = 0;
+      firstNonIntroMs = -1; // reset — this line is still intro
+    } else {
+      if (firstNonIntroMs === -1) firstNonIntroMs = startMsValues[i];
+      consecutiveNonIntro++;
+      // Require 2 consecutive non-intro lines to confirm intro ended
+      if (consecutiveNonIntro >= 2 && foundIntro) {
+        return firstNonIntroMs;
+      }
+    }
+  }
+
+  // Intro detected but only 1 trailing non-intro line before scan limit
+  if (foundIntro && firstNonIntroMs >= 0) return firstNonIntroMs;
+
+  return 0; // no intro detected → no filtering
+}
+
 // ─── Timestamp snapping ───────────────────────────────────────────────────────
 
 /**
@@ -104,8 +166,22 @@ export async function smartClipVideo(
   const totalSec = Math.round(tokens[tokens.length - 1].endMs / 1000);
   const transcript = lines.join("\n");
 
+  // ── Deterministic intro detection ─────────────────────────────────────────
+  // Filter timestamps that fall inside the intro zone BEFORE passing to Claude.
+  // This prevents Claude from picking intro timestamps regardless of its
+  // instruction-following — if the timestamp isn't in validStarts, Claude
+  // cannot choose it.
+  const introEndMs = detectIntroEndMs(tokens);
+  if (introEndMs > 0) {
+    console.log(`[smart-clipper] Intro detected — blocking timestamps before ${introEndMs}ms (${Math.round(introEndMs / 1000)}s)`);
+  }
+
+  const allowedStartMs = introEndMs > 0
+    ? startMsValues.filter((ms) => ms >= introEndMs)
+    : startMsValues;
+
   // Build a compact list of valid start timestamps for the prompt
-  const validStarts = startMsValues.join(", ");
+  const validStarts = allowedStartMs.join(", ");
 
   // Duration range: from profile or default
   const minDuration = contentProfile?.optimal_duration_min ?? 20;
@@ -206,7 +282,17 @@ Respondé ÚNICAMENTE con un JSON array válido (sin markdown, sin texto adicion
       nonOverlapping.push(clip);
     }
 
-    return nonOverlapping;
+    // Post-filter: remove any clips whose snapped start_ms fell inside the
+    // intro zone (can happen if snapToToken pulled a timestamp slightly back).
+    const filtered = introEndMs > 0
+      ? nonOverlapping.filter((c) => c.start_ms >= introEndMs)
+      : nonOverlapping;
+
+    if (filtered.length < nonOverlapping.length) {
+      console.log(`[smart-clipper] Removed ${nonOverlapping.length - filtered.length} intro clip(s) after snap`);
+    }
+
+    return filtered;
   } catch (err) {
     console.warn("[smart-clipper] Failed to parse Claude response:", err);
     console.warn("[smart-clipper] Raw response:", raw.slice(0, 300));

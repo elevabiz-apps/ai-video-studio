@@ -26,6 +26,8 @@ export async function burnSubtitles(
     return;
   }
 
+  console.log(`[subtitle] Starting burn — clip: ${path.basename(clipPath)}, preset: ${preset}, range: ${clipStartMs}–${clipEndMs}ms`);
+
   // Write captions to a temp file so the Python script can read them
   const tmpCaptions = path.join(os.tmpdir(), `captions_${Date.now()}.json`);
   fs.writeFileSync(tmpCaptions, captionsJson, "utf-8");
@@ -79,7 +81,9 @@ export async function burnSubtitles(
     proc.on("close", (code) => {
       clearTimeout(timeoutId);
       try { fs.unlinkSync(tmpCaptions); } catch { /* ignore */ }
-      if (code !== 0) {
+      if (code === 0) {
+        console.log(`[subtitle] ✓ Done — ${path.basename(clipPath)}`);
+      } else {
         console.warn(`[subtitle] burn-subtitles.py exited with code ${code} — clip saved without subtitles`);
       }
       resolve(); // non-fatal: always resolve
