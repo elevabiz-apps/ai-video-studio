@@ -135,25 +135,27 @@ Analizás la transcripción de un video de ${totalSec}s en español. Cada línea
 ${profileSection}
 MISIÓN: identificar los mejores momentos para hacer clips virales${contentProfile?.niche ? ` para el nicho de ${contentProfile.niche}` : ""}.
 
-PATRONES_DÉBILES — inicio que NO es un gancho válido (el clip NO debe empezar con estos):
-• Saludos genéricos: "Hola a todos", "Muy buenas a todos", "Buenos días/tardes", "Qué tal", "Bienvenidos"
-• Presentaciones de episodio/video: "En el video de hoy", "Hoy vamos a ver", "En este episodio", "El tema de hoy"
-• Autopresentación: "Mi nombre es", "Soy [nombre]", "Les habla [nombre]", "Me presento"
-• Frases de contexto y relleno: "Antes de empezar", "Como siempre", "No olvides suscribirte", "Eh...", "Bueno..."
-• Promesas de estructura: "Vamos a hablar de", "Te voy a explicar", "Hoy te enseño"
+PASO 1 — IDENTIFICAR ZONA DE INTRO (hacelo antes de proponer clips):
+Leé las primeras líneas del transcript. Si empiezan con alguno de estos patrones, toda esa sección es "ZONA DE INTRO" y NINGÚN clip puede empezar ahí:
+• Saludos: "Hola", "Muy buenas", "Buenos días/tardes/noches", "Qué tal", "Bienvenidos", "Cómo están"
+• Saludar a alguien por nombre: "Muy buenas [nombre]", "Hola [nombre]"
+• Presentar el episodio: "En el video de hoy", "Hoy vamos a ver", "En este episodio", "Les traigo", "Hoy te enseño"
+• Autopresentarse: "Mi nombre es", "Soy [nombre]", "Me llamo", "Les habla"
+• Contexto/relleno: "Antes de empezar", "Como siempre", "No olvides suscribirte"
 
-TIPOS DE HOOK VÁLIDOS — el clip DEBE empezar con uno de estos:
-• Pregunta directa que genera intriga: "¿Sabías que...?", "¿Qué pasa cuando...?", "¿Por qué nadie habla de...?"
-• Dato sorprendente o cifra concreta: "El 90% de las personas...", "En 30 días perdí..."
-• Declaración emocional o situación de tensión ya planteada: "Cometí el error más grande de mi vida cuando..."
-• Promesa de valor específica y concreta: "Esto te va a ahorrar 3 horas por semana"
-• Inicio de historia con conflicto ya activo: "Cuando me dijeron que...", "El día que todo se derrumbó..."
-• Afirmación contraintuitiva o polémica: "Lo que te enseñaron sobre X está completamente mal"
-• Antes/después con resultado concreto: "Pasé de X a Y en Z tiempo"
+PASO 2 — HOOKS VÁLIDOS (así debe empezar cada clip):
+• Pregunta directa que genera intriga o curiosidad
+• Dato sorprendente o cifra concreta con impacto
+• Declaración emocional o de tensión ya en acción
+• Promesa de valor específica y concreta
+• Historia con conflicto activo desde la primera frase
+• Afirmación contraintuitiva o polémica
+• Resultado antes/después concreto
 
-REGLAS:
-• Si los primeros minutos del video contienen intro débil (saludos, presentaciones), el PRIMER clip DEBE empezar donde empiece el primer gancho real — aunque sea 60, 90 o 120 segundos adentro del video. No recortes desde el principio solo porque es el principio.
-• El final debe cerrar la idea — nunca cortar a mitad de oración
+REGLAS CRÍTICAS:
+• PROHIBIDO: usar cualquier timestamp de la ZONA DE INTRO como start_ms de un clip
+• El start_ms del PRIMER clip debe ser el timestamp de la primera frase HOOK VÁLIDO que aparezca DESPUÉS de la ZONA DE INTRO, aunque esté a 60, 90 o 120 segundos del inicio
+• El final de cada clip debe cerrar la idea — nunca cortar a mitad de oración
 • Duración ideal: ${minDuration}-${maxDuration} segundos por clip
 • Encontrá entre 3 y 8 clips — el mínimo es 3, más clips = mejor resultado para el usuario
 • Los clips NO se deben solapar: el start_ms de cada clip debe ser mayor al end_ms del anterior

@@ -67,8 +67,14 @@ function cutSilences(inputPath: string, outputPath: string): Promise<void> {
       env: { ...process.env, DYLD_LIBRARY_PATH: COMPOSITOR_DIR },
       stdio: ["ignore", "pipe", "pipe"],
     });
-    proc.stdout.on("data", (chunk: Buffer) => process.stdout.write(chunk));
-    proc.stderr.on("data", (chunk: Buffer) => process.stderr.write(chunk));
+    // Non-blocking log — process.stdout/stderr.write() is synchronous/blocking
+    // on Railway (pipe mode), which can deadlock when the Python script prints
+    // long ffmpeg error messages. Use console.log per-line instead.
+    const onData = (chunk: Buffer) => {
+      chunk.toString().split("\n").filter(Boolean).forEach((l) => console.log(`[cut_silences] ${l}`));
+    };
+    proc.stdout.on("data", onData);
+    proc.stderr.on("data", onData);
     proc.on("close", (code) => {
       if (code === 0) resolve();
       else reject(new Error(`cut_silences.py exited with code ${code}`));
