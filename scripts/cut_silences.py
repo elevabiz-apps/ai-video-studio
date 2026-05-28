@@ -93,10 +93,11 @@ def cut_segment(args):
     *before* the cut point, the video track starts earlier than the audio track,
     creating A/V desync that accumulates across concatenated segments.
 
-    Fix: use input-side seeking (-ss before -i) + libx264 ultrafast re-encoding.
+    Fix: use input-side seeking (-ss before -i) + libx264 re-encoding.
     FFmpeg decodes from the nearest keyframe, then re-encodes from the exact start
     point, so both video and audio start at the same timestamp — no desync.
-    Ultrafast is ~10x faster than the default preset with minimal quality loss.
+    veryfast+CRF23 balances speed, quality, and disk usage (ultrafast+CRF20 produced
+    files 3-4x larger for no perceptible quality gain, exhausting Railway disk space).
     """
     i, start, end, input_file, tmpdir = args
     clip_path = os.path.join(tmpdir, f"clip_{i:04d}.mp4")
@@ -107,20 +108,23 @@ def cut_segment(args):
         "-i", input_file,
         "-t", str(duration),
         "-map", "0:v:0", "-map", "0:a:0",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k",
         "-avoid_negative_ts", "make_zero",
         clip_path
     ]
-    subprocess.run(cmd, capture_output=True, env=DYLD_ENV, check=True)
+    result = subprocess.run(cmd, capture_output=True, env=DYLD_ENV)
+    if result.returncode != 0:
+        sys.stderr.write(f"[cut_segment {i}] ffmpeg error:\n{result.stderr.decode(errors='replace')}\n")
+        sys.stderr.flush()
+        raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
     return clip_path
 
 def cut_and_concat(input_file, segments, output_file):
     with tempfile.TemporaryDirectory() as tmpdir:
-        print(f"Cutting {len(segments)} segments (stream copy, low memory)...")
+        print(f"Cutting {len(segments)} segments (re-encode, A/V sync safe)...")
 
-        # Sequential cutting — stream copy is fast so no need for parallelism,
-        # and parallel ffmpeg processes OOM-kill on Railway's 512MB containers.
+        # Sequential cutting — one ffmpeg at a time to avoid OOM on Railway.
         clip_files = []
         for i, (s, e) in enumerate(segments):
             clip_path = cut_segment((i, s, e, input_file, tmpdir))
@@ -140,7 +144,11 @@ def cut_and_concat(input_file, segments, output_file):
             "-c", "copy",
             output_file
         ]
-        subprocess.run(cmd, capture_output=True, env=DYLD_ENV, check=True)
+        result = subprocess.run(cmd, capture_output=True, env=DYLD_ENV)
+        if result.returncode != 0:
+            sys.stderr.write(f"[concat] ffmpeg error:\n{result.stderr.decode(errors='replace')}\n")
+            sys.stderr.flush()
+            raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
 
 def main():
     input_file = sys.argv[1] if len(sys.argv) > 1 else None
