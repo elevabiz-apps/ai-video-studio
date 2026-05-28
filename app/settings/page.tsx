@@ -27,6 +27,7 @@ type ContentProfile = {
   avg_views: number | null;
   avg_engagement_rate: number | null;
   reference_profiles: string;
+  is_primary?: number;
   created_at: string;
 };
 
@@ -50,6 +51,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"connections" | "profiles" | "auto-config">("connections");
   const [deletingProfile, setDeletingProfile] = useState<string | null>(null);
+  const [settingPrimary, setSettingPrimary] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/dashboard")
@@ -74,6 +76,23 @@ export default function SettingsPage() {
       // ignore
     }
     setDeletingProfile(null);
+  };
+
+  const handleSetPrimary = async (profileId: string) => {
+    setSettingPrimary(profileId);
+    try {
+      const res = await fetch("/api/references", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId }),
+      });
+      if (res.ok) {
+        setProfiles((prev) => prev.map((p) => ({ ...p, is_primary: p.id === profileId ? 1 : 0 })));
+      }
+    } catch {
+      // ignore
+    }
+    setSettingPrimary(null);
   };
 
   if (loading) {
@@ -188,7 +207,14 @@ export default function SettingsPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {profiles.map((p) => (
-                <ProfileCard key={p.id} profile={p} onDelete={handleDeleteProfile} deleting={deletingProfile === p.id} />
+                <ProfileCard
+                  key={p.id}
+                  profile={p}
+                  onDelete={handleDeleteProfile}
+                  deleting={deletingProfile === p.id}
+                  onSetPrimary={handleSetPrimary}
+                  settingPrimary={settingPrimary === p.id}
+                />
               ))}
             </div>
           )}
@@ -244,13 +270,24 @@ function ConnectionRow({ name, icon, description, status, statusText, envVars, a
   );
 }
 
-function ProfileCard({ profile, onDelete, deleting }: { profile: ContentProfile; onDelete: (id: string) => void; deleting: boolean }) {
+function ProfileCard({
+  profile, onDelete, deleting, onSetPrimary, settingPrimary,
+}: {
+  profile: ContentProfile;
+  onDelete: (id: string) => void;
+  deleting: boolean;
+  onSetPrimary: (id: string) => void;
+  settingPrimary: boolean;
+}) {
   const hooks = safeJsonParse(profile.top_hooks, []);
   const hashtags = safeJsonParse(profile.top_hashtags, []);
+  const isPrimary = !!profile.is_primary;
 
   return (
     <div style={{
-      background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px",
+      background: "var(--card)",
+      border: isPrimary ? "1px solid #22c55e" : "1px solid var(--border)",
+      borderRadius: 10, padding: "16px 20px",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -262,18 +299,41 @@ function ProfileCard({ profile, onDelete, deleting }: { profile: ContentProfile;
           }}>
             {profile.pacing}
           </span>
+          {isPrimary && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 12,
+              background: "rgba(34,197,94,0.12)", color: "#22c55e",
+            }}>
+              Cuenta principal
+            </span>
+          )}
         </div>
-        <button
-          onClick={() => onDelete(profile.id)}
-          disabled={deleting}
-          style={{
-            background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
-            padding: "4px 10px", fontSize: 11, color: "#ef4444", cursor: "pointer",
-            opacity: deleting ? 0.5 : 1,
-          }}
-        >
-          {deleting ? "..." : "Eliminar"}
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          {!isPrimary && (
+            <button
+              onClick={() => onSetPrimary(profile.id)}
+              disabled={settingPrimary}
+              style={{
+                background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+                padding: "4px 10px", fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer",
+                opacity: settingPrimary ? 0.5 : 1,
+              }}
+            >
+              {settingPrimary ? "..." : "Establecer como principal"}
+            </button>
+          )}
+          <button
+            onClick={() => onDelete(profile.id)}
+            disabled={deleting}
+            style={{
+              background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+              padding: "4px 10px", fontSize: 11, color: "#ef4444", cursor: "pointer",
+              opacity: deleting ? 0.5 : 1,
+            }}
+          >
+            {deleting ? "..." : "Eliminar"}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>

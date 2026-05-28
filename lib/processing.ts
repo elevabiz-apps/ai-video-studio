@@ -444,6 +444,11 @@ export async function spawnMultiClipPipeline(
           if (cpId) {
             contentProfile = dbMod.contentProfileQueries.getById.get(cpId) ?? null;
           }
+          // Fallback: use the primary account profile if no auto-config has one linked
+          if (!contentProfile) {
+            contentProfile = dbMod.contentProfileQueries.getPrimary.get() ?? null;
+            if (contentProfile) console.log("[pipeline] Using primary account profile for clip scoring");
+          }
         } catch { /* no profile available, use default scoring */ }
 
         const smartClips = await smartClipVideo(captions, contentProfile);

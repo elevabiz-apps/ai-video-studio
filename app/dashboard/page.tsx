@@ -241,6 +241,7 @@ export default function DashboardPage() {
       {/* Quick links */}
       <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
         <QuickLink href="/dashboard/analytics" label="📊 Ver Analytics" />
+        <QuickLink href="/dashboard/instagram" label="📱 Instagram Analytics" />
         <QuickLink href="/settings" label="⚙️ Configuración" />
       </div>
     </div>

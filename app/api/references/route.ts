@@ -24,6 +24,21 @@ export async function GET(req: NextRequest) {
 }
 
 /**
+ * PATCH /api/references
+ * Mark a content profile as the primary account for analysis.
+ * Body: { profileId: string }
+ */
+export async function PATCH(req: NextRequest) {
+  const { profileId } = await req.json();
+  if (!profileId) {
+    return NextResponse.json({ error: "Missing profileId" }, { status: 400 });
+  }
+  contentProfileQueries.clearPrimary.run();
+  contentProfileQueries.updateField(profileId, { is_primary: 1 });
+  return NextResponse.json({ ok: true });
+}
+
+/**
  * DELETE /api/references?profileId=xxx
  * Delete a content profile and all its reference posts.
  */

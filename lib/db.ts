@@ -38,6 +38,7 @@ function getDb(): InstanceType<typeof Database> {
   try { _db.exec(`ALTER TABLE clips ADD COLUMN approval_status TEXT DEFAULT 'pending'`); } catch { /* already exists */ }
   try { _db.exec(`ALTER TABLE projects ADD COLUMN original_video TEXT`); } catch { /* already exists */ }
   try { _db.exec(`ALTER TABLE jobs ADD COLUMN completed_steps TEXT DEFAULT '[]'`); } catch { /* already exists */ }
+  try { _db.exec(`ALTER TABLE content_profiles ADD COLUMN is_primary INTEGER DEFAULT 0`); } catch { /* already exists */ }
 
   // Initialize schema
   _db.exec(`
@@ -144,6 +145,7 @@ function getDb(): InstanceType<typeof Database> {
     avg_engagement_rate REAL,
     reference_profiles TEXT DEFAULT '[]',
     raw_data TEXT,
+    is_primary INTEGER DEFAULT 0,
     updated_at TEXT DEFAULT (datetime('now')),
     created_at TEXT DEFAULT (datetime('now'))
   );
@@ -426,6 +428,7 @@ export type ContentProfile = {
   avg_engagement_rate: number | null;
   reference_profiles: string;
   raw_data: string | null;
+  is_primary: number;
   updated_at: string;
   created_at: string;
 };
@@ -434,6 +437,8 @@ export const contentProfileQueries = {
   get getAll() { return getDb().prepare<[], ContentProfile>("SELECT * FROM content_profiles ORDER BY created_at DESC"); },
   get getById() { return getDb().prepare<[string], ContentProfile>("SELECT * FROM content_profiles WHERE id = ?"); },
   get getByAccount() { return getDb().prepare<[string], ContentProfile>("SELECT * FROM content_profiles WHERE account_id = ?"); },
+  get getPrimary() { return getDb().prepare<[], ContentProfile>("SELECT * FROM content_profiles WHERE is_primary = 1 LIMIT 1"); },
+  get clearPrimary() { return getDb().prepare<[], void>("UPDATE content_profiles SET is_primary = 0"); },
   get create() {
     return getDb().prepare<[string, string | null], void>(
       "INSERT INTO content_profiles (id, account_id) VALUES (?, ?)"

@@ -135,8 +135,24 @@ Analizás la transcripción de un video de ${totalSec}s en español. Cada línea
 ${profileSection}
 MISIÓN: identificar los mejores momentos para hacer clips virales${contentProfile?.niche ? ` para el nicho de ${contentProfile.niche}` : ""}.
 
+PATRONES_DÉBILES — inicio que NO es un gancho válido (el clip NO debe empezar con estos):
+• Saludos genéricos: "Hola a todos", "Muy buenas a todos", "Buenos días/tardes", "Qué tal", "Bienvenidos"
+• Presentaciones de episodio/video: "En el video de hoy", "Hoy vamos a ver", "En este episodio", "El tema de hoy"
+• Autopresentación: "Mi nombre es", "Soy [nombre]", "Les habla [nombre]", "Me presento"
+• Frases de contexto y relleno: "Antes de empezar", "Como siempre", "No olvides suscribirte", "Eh...", "Bueno..."
+• Promesas de estructura: "Vamos a hablar de", "Te voy a explicar", "Hoy te enseño"
+
+TIPOS DE HOOK VÁLIDOS — el clip DEBE empezar con uno de estos:
+• Pregunta directa que genera intriga: "¿Sabías que...?", "¿Qué pasa cuando...?", "¿Por qué nadie habla de...?"
+• Dato sorprendente o cifra concreta: "El 90% de las personas...", "En 30 días perdí..."
+• Declaración emocional o situación de tensión ya planteada: "Cometí el error más grande de mi vida cuando..."
+• Promesa de valor específica y concreta: "Esto te va a ahorrar 3 horas por semana"
+• Inicio de historia con conflicto ya activo: "Cuando me dijeron que...", "El día que todo se derrumbó..."
+• Afirmación contraintuitiva o polémica: "Lo que te enseñaron sobre X está completamente mal"
+• Antes/después con resultado concreto: "Pasé de X a Y en Z tiempo"
+
 REGLAS:
-• El inicio DEBE ser un gancho fuerte: pregunta directa, dato sorprendente, declaración emocional, promesa de valor, o inicio de historia que genera curiosidad
+• Si los primeros minutos del video contienen intro débil (saludos, presentaciones), el PRIMER clip DEBE empezar donde empiece el primer gancho real — aunque sea 60, 90 o 120 segundos adentro del video. No recortes desde el principio solo porque es el principio.
 • El final debe cerrar la idea — nunca cortar a mitad de oración
 • Duración ideal: ${minDuration}-${maxDuration} segundos por clip
 • Encontrá entre 3 y 8 clips — el mínimo es 3, más clips = mejor resultado para el usuario
@@ -155,7 +171,7 @@ Respondé ÚNICAMENTE con un JSON array válido (sin markdown, sin texto adicion
   try {
     const response = await getClient().messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 1200,
+      max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     });
 
