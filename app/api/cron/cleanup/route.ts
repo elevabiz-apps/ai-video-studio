@@ -40,11 +40,14 @@ export async function GET() {
       return NextResponse.json({ message: "Assets directory does not exist", results });
     }
 
-    // ── Step 1: Collect files that must be KEPT (clip & render outputs) ──────
+    // ── Step 1: Collect files that must be KEPT ──────────────────────────────
     const clips = clipQueries.getAll?.all?.() as Clip[] ?? [];
     const renders = renderQueries.getAll?.all?.() as Render[] ?? [];
+    const projects = projectQueries.getAll.all() as Project[];
 
     const keepFiles = new Set<string>();
+
+    // Keep clip and render output files
     for (const clip of clips) {
       if (clip.output_path) keepFiles.add(path.basename(clip.output_path));
     }
@@ -52,19 +55,30 @@ export async function GET() {
       if (render.output_path) keepFiles.add(path.basename(render.output_path));
     }
 
-    // ── Step 2: Collect source/intermediate files that belong to done projects ──
-    const projects = projectQueries.getAll.all() as Project[];
+    // Keep original_video files from ALL projects — they are needed for re-processing.
+    // Deleting them breaks re-process: the pipeline uses original_video as the input
+    // for analyze, silence detection, and cut, and there's no way to recover it without
+    // re-uploading from Drive.
+    for (const project of projects) {
+      if (project.original_video) keepFiles.add(path.basename(project.original_video));
+    }
+
+    // ── Step 2: Collect INTERMEDIATE files from done projects (safe to delete) ──
+    // Only delete source_video (processed intermediates like _procesado, _vertical).
+    // original_video is protected above — never deleted.
     const doneProjects = projects.filter(
       (p) => p.status === "ready" || p.status === "rendered" || p.status === "failed"
     );
 
     const deleteFromProjects = new Set<string>();
     for (const project of doneProjects) {
-      if (project.original_video) {
-        deleteFromProjects.add(path.basename(project.original_video));
-      }
+      // original_video is intentionally excluded — it's in keepFiles
       if (project.source_video) {
-        deleteFromProjects.add(path.basename(project.source_video));
+        const base = path.basename(project.source_video);
+        // Double-check: don't add if it's also an original_video of any project
+        if (!keepFiles.has(base)) {
+          deleteFromProjects.add(base);
+        }
       }
     }
 

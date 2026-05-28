@@ -128,7 +128,25 @@ async function runBasePipeline(
   const originalRelative = project?.original_video
     ? (isSupabasePath(project.original_video) ? sourceVideoRelative : project.original_video)
     : sourceVideoRelative;
-  const videoPath = path.join(CWD, "public", originalRelative);
+  let videoPath = path.join(CWD, "public", originalRelative);
+
+  // Guard: if original_video was deleted by the cleanup cron, try source_video as fallback.
+  // Cleanup intentionally deletes source_video intermediates but should never delete
+  // original_video — if it did (old behavior before the fix), surface a clear error.
+  if (!fs.existsSync(videoPath)) {
+    console.warn(`[pipeline] original_video not found on disk: ${videoPath}`);
+    const fallbackPath = path.join(CWD, "public", sourceVideoRelative);
+    if (fs.existsSync(fallbackPath)) {
+      console.warn(`[pipeline] Falling back to source_video: ${fallbackPath}`);
+      videoPath = fallbackPath;
+    } else {
+      throw new Error(
+        "El archivo de video original no está disponible en el servidor. " +
+        "Fue eliminado por el proceso de limpieza automática de disco. " +
+        "Subí el video nuevamente desde Google Drive para re-procesarlo."
+      );
+    }
+  }
 
   // Step 1: Analyze original video
   await updateJob("processing", 5, "Analizando video...");
