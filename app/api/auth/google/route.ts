@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const origin = req.nextUrl.origin;
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
   const isJsonRequest = req.nextUrl.searchParams.get("json") === "1";
 
   // Status-only check (called from UI to show connected/disconnected badge)

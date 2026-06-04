@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const error = req.nextUrl.searchParams.get("error");
   const returnedState = req.nextUrl.searchParams.get("state");
-  const baseUrl = req.nextUrl.origin;
+  // NEXT_PUBLIC_APP_URL evita el bug de req.nextUrl.origin devolviendo http://0.0.0.0:3000
+  // en Railway (el Dockerfile setea HOSTNAME=0.0.0.0 para que Next escuche en todas las interfaces)
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
 
   if (error) {
     return NextResponse.redirect(`${baseUrl}/settings?drive_error=${encodeURIComponent(error)}`);
