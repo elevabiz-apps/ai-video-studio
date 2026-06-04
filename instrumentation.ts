@@ -10,6 +10,16 @@ export async function register() {
   // Only run in the Node.js runtime (not in the Edge runtime / client bundle)
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // ── 0. DB health check ────────────────────────────────────────────────────
+  // Verifica que las tablas existan en Supabase y loguea un mensaje claro si
+  // faltan (en vez del críptico PGRST205). Ver lib/db-health.ts.
+  try {
+    const { logDbHealth } = await import("./lib/db-health");
+    await logDbHealth();
+  } catch (err) {
+    console.warn("[db-health] check failed:", err);
+  }
+
   // ── 1. Reset stuck renders ────────────────────────────────────────────────
   try {
     const { hasSupabase, getSupabaseClient } = await import("./lib/supabase-client");
@@ -68,7 +78,8 @@ export async function register() {
 
   const runDriveCheck = async () => {
     try {
-      const { checkDriveForNewVideos } = await import("./lib/drive-watcher");
+      // webpackIgnore: tells webpack not to bundle this — server-only code with Node.js built-ins
+      const { checkDriveForNewVideos } = await import(/* webpackIgnore: true */ "./lib/drive-watcher");
       const result = await checkDriveForNewVideos();
       if (result.newFiles > 0) {
         console.log(`[drive-cron] Found ${result.newFiles} new file(s) in Drive.`);
