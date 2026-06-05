@@ -34,11 +34,22 @@ async function supabaseQuery<T>(
 
 export async function getAllProjects(): Promise<Project[]> {
   if (hasSupabase()) {
-    const { data, error } = await supabase()
+    // Intento ordenado por created_at. Si esa columna no es resoluble por
+    // PostgREST (drift de schema / cache desactualizado en Supabase), reintento
+    // SIN order para que la home cargue igual (orden en JS) en vez de romper.
+    let { data, error } = await supabase()
       .from("projects")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) throw error;
+    if (error) {
+      console.error("[getAllProjects] order(created_at) falló, reintento sin order:", error);
+      ({ data, error } = await supabase().from("projects").select("*"));
+      if (error) throw error;
+      data = (data ?? []).slice().sort(
+        (a: { created_at?: string }, b: { created_at?: string }) =>
+          String(b?.created_at ?? "").localeCompare(String(a?.created_at ?? "")),
+      );
+    }
     return (data ?? []) as Project[];
   }
   return sqlite().projectQueries.getAll.all() as Project[];

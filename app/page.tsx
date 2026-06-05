@@ -13,7 +13,10 @@ export default async function DashboardPage() {
   try {
     projects = (await getAllProjects()) as Project[];
   } catch (e) {
-    loadError = e instanceof Error ? e.message : String(e);
+    // El error de Supabase es un objeto plano ({code,message,details,hint}),
+    // no un Error → extraer .message o serializar (no "[object Object]").
+    const err = e as { message?: string };
+    loadError = err?.message ?? (() => { try { return JSON.stringify(e); } catch { return String(e); } })();
     console.error("[homepage] No se pudieron cargar los proyectos:", e);
   }
 
