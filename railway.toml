@@ -4,7 +4,11 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "sh start.sh"
-healthcheckPath = "/api/projects"
+# Liveness: /api/health responde 200 si el proceso está vivo (NO depende de que
+# la query de proyectos funcione). Antes apuntaba a /api/projects, que al fallar
+# (drift de schema en Supabase) hacía fallar TODOS los healthchecks → el deploy
+# quedaba FAILED y el servicio entero caía con 502.
+healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
