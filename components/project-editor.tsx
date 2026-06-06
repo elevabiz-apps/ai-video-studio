@@ -40,11 +40,18 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   const [uploadProgress, setUploadProgress] = useState(0);
   const [jobStep, setJobStep] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Track active render-polling intervals so they can be cleared on unmount.
+  const pollIntervals = useRef<Set<ReturnType<typeof setInterval>>>(new Set());
 
   const refreshProject = useCallback(async () => {
-    const res = await fetch(`/api/projects/${project.id}`);
-    const updated = await res.json();
-    setProject(updated);
+    try {
+      const res = await fetch(`/api/projects/${project.id}`);
+      if (!res.ok) return; // keep current state on error (e.g. project deleted)
+      const updated = await res.json();
+      if (updated?.id) setProject(updated);
+    } catch {
+      // transient network error — keep current state
+    }
   }, [project.id]);
 
   async function handleDeleteProject() {
@@ -86,31 +93,44 @@ export default function ProjectEditor({ project: initialProject, renders: initia
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
 
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "/api/upload-chunk");
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              // Overall progress: completed chunks + current chunk progress
-              const chunkProgress = e.loaded / e.total;
-              const overall = Math.round(((i + chunkProgress) / totalChunks) * 100);
-              setUploadProgress(overall);
-            }
-          };
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(`Error ${xhr.status} al subir parte ${i + 1}`));
-          };
-          xhr.onerror = () => reject(new Error(`Error de red al subir parte ${i + 1}`));
-          xhr.ontimeout = () => reject(new Error(`Timeout al subir parte ${i + 1}`));
-          xhr.timeout = 300000; // 5 min per chunk
-
-          const formData = new FormData();
-          formData.append("chunk", new File([chunk], filename, { type: file.type }));
-          formData.append("uploadId", uploadId);
-          formData.append("chunkIndex", String(i));
-          xhr.send(formData);
-        });
+        // Retry each chunk before giving up — a single transient network/server
+        // blip should not abort a multi-hundred-MB upload.
+        const MAX_RETRIES = 4;
+        let attempt = 0;
+        for (;;) {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open(
+                "POST",
+                `/api/upload-chunk?uploadId=${encodeURIComponent(uploadId)}&chunkIndex=${i}`
+              );
+              xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                  // Overall progress: completed chunks + current chunk progress
+                  const chunkProgress = e.loaded / e.total;
+                  const overall = Math.round(((i + chunkProgress) / totalChunks) * 100);
+                  setUploadProgress(overall);
+                }
+              };
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) resolve();
+                else reject(new Error(`Error ${xhr.status} al subir parte ${i + 1}`));
+              };
+              xhr.onerror = () => reject(new Error(`Error de red al subir parte ${i + 1}`));
+              xhr.ontimeout = () => reject(new Error(`Timeout al subir parte ${i + 1}`));
+              xhr.timeout = 300000; // 5 min per chunk
+              xhr.setRequestHeader("Content-Type", "application/octet-stream");
+              xhr.send(chunk); // raw body — backend streams it straight to disk
+            });
+            break; // success
+          } catch (err) {
+            attempt++;
+            if (attempt > MAX_RETRIES) throw err; // retries exhausted → real failure
+            // Exponential backoff: 0.5s, 1s, 2s, 4s
+            await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
+          }
+        }
       }
 
       setUploadProgress(99);
@@ -136,26 +156,48 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   }
 
   async function runPipeline() {
-    const res = await fetch("/api/process", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: project.id }),
-    });
-    const { jobId: id } = await res.json();
-    setJobId(id);
-    await refreshProject();
+    try {
+      const res = await fetch("/api/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || `Error ${res.status} al iniciar el procesamiento`);
+        return;
+      }
+      const { jobId: id } = await res.json();
+      if (id) setJobId(id);
+      await refreshProject();
+    } catch {
+      alert("Error de conexión al iniciar el procesamiento");
+    }
   }
 
   async function triggerRender(platform: string) {
-    const res = await fetch("/api/render", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: project.id, platform, captionPreset }),
-    });
-    const render = await res.json();
-    setRenders((prev) => [render, ...prev]);
-    // Poll renders
-    pollRender(render.id);
+    try {
+      const res = await fetch("/api/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, platform, captionPreset }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || `Error ${res.status} al iniciar el render`);
+        return;
+      }
+      const render = await res.json();
+      if (!render?.id) {
+        alert("Respuesta inválida del servidor al renderizar");
+        return;
+      }
+      setRenders((prev) => [render, ...prev]);
+      // Poll renders
+      pollRender(render.id);
+    } catch {
+      alert("Error de conexión al iniciar el render");
+    }
   }
 
   async function pollRender(renderId: string) {
@@ -167,11 +209,13 @@ export default function ProjectEditor({ project: initialProject, renders: initia
         setRenders((prev) => prev.map((rr) => (rr.id === renderId ? r : rr)));
         if (r.status === "complete" || r.status === "failed" || isRenderTimedOut(r)) {
           clearInterval(interval);
+          pollIntervals.current.delete(interval);
         }
       } catch {
         // network error — keep polling, will retry next tick
       }
     }, 1500);
+    pollIntervals.current.add(interval);
   }
 
   // On mount: resume polling for renders that were already in-progress.
@@ -183,6 +227,9 @@ export default function ProjectEditor({ project: initialProject, renders: initia
         pollRender(r.id);
       }
     }
+    // Clear any active render-polling intervals on unmount to avoid leaks.
+    const intervals = pollIntervals.current;
+    return () => { intervals.forEach(clearInterval); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

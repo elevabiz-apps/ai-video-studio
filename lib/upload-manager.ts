@@ -129,11 +129,13 @@ export async function runPublish(opts: PublishOptions): Promise<void> {
     if (!fs.existsSync(absPath)) {
       throw new Error(`File not found: ${absPath}`);
     }
-    const fileBuffer = fs.readFileSync(absPath);
     const filename = path.basename(filePath);
 
-    // 2. Upload to Blotato media storage
-    const { media_id } = await uploadMedia(fileBuffer, filename, "video/mp4");
+    // 2. Upload to Blotato media storage.
+    // Stream the file via a file-backed Blob (fs.openAsBlob) instead of reading the
+    // whole video into a Buffer — avoids OOM on the 512MB container for large renders.
+    const fileBlob = await fs.openAsBlob(absPath, { type: "video/mp4" });
+    const { media_id } = await uploadMedia(fileBlob, filename);
 
     // 3. Create post on Blotato
     const posts = await createPost({

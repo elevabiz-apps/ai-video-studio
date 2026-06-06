@@ -3,14 +3,16 @@ export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import { getProjectById, updateProjectField } from "@/lib/db-async";
-import fs from "fs";
+import { createReadStream, createWriteStream, existsSync, mkdirSync } from "fs";
+import { rm } from "fs/promises";
+import { pipeline } from "stream/promises";
 import path from "path";
-import os from "os";
 
-// Assembles all uploaded chunks into a single video file.
-// Reads /tmp/{uploadId}.part0, .part1, ... in order,
-// concatenates them, saves to public/assets/{filename},
-// and updates the project DB record.
+const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), ".studio");
+const UPLOAD_TMP = path.join(DATA_DIR, "tmp-uploads");
+
+// Assembles all uploaded chunks into a single video file by STREAMING each part
+// into the destination in order (constant memory), then cleans up the temp dir.
 export async function POST(req: NextRequest) {
   const { projectId, uploadId, filename, totalChunks } = await req.json();
 
@@ -26,65 +28,54 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  const tmpDir = os.tmpdir();
+  const safeId = String(uploadId).replace(/[^a-zA-Z0-9_-]/g, "");
+  const partsDir = path.join(UPLOAD_TMP, safeId);
 
-  // Verify all chunks exist
-  for (let i = 0; i < totalChunks; i++) {
-    const chunkPath = path.join(tmpDir, `${uploadId}.part${i}`);
-    if (!fs.existsSync(chunkPath)) {
-      return NextResponse.json(
-        { error: `Missing chunk ${i}` },
-        { status: 400 }
-      );
-    }
-  }
-
-  // Sanitize filename
-  const ext = path.extname(filename);
-  const baseName = path.basename(filename, ext).replace(/[^a-zA-Z0-9_\-. ]/g, "_");
-  const sanitizedFilename = `${baseName}${ext}`;
-
-  // Ensure assets directory exists
-  const assetsDir = path.join(process.cwd(), "public", "assets");
-  if (!fs.existsSync(assetsDir)) {
-    fs.mkdirSync(assetsDir, { recursive: true });
-  }
-
-  const outputPath = path.join(assetsDir, sanitizedFilename);
-  const writeStream = fs.createWriteStream(outputPath);
-
-  // Concatenate all chunks in order
-  await new Promise<void>((resolve, reject) => {
-    writeStream.on("finish", resolve);
-    writeStream.on("error", reject);
-
-    (async () => {
-      for (let i = 0; i < totalChunks; i++) {
-        const chunkPath = path.join(tmpDir, `${uploadId}.part${i}`);
-        const chunkData = fs.readFileSync(chunkPath);
-        const ok = writeStream.write(chunkData);
-        if (!ok) {
-          // Wait for drain before writing more
-          await new Promise<void>((res) => writeStream.once("drain", res));
-        }
+  try {
+    // Verify all chunks exist before assembling.
+    for (let i = 0; i < totalChunks; i++) {
+      if (!existsSync(path.join(partsDir, `part${i}`))) {
+        return NextResponse.json({ error: `Missing chunk ${i}` }, { status: 400 });
       }
-      writeStream.end();
-    })().catch(reject);
-  });
+    }
 
-  // Clean up temp chunk files
-  for (let i = 0; i < totalChunks; i++) {
-    const chunkPath = path.join(tmpDir, `${uploadId}.part${i}`);
-    try { fs.unlinkSync(chunkPath); } catch { /* ignore */ }
+    // Sanitize filename.
+    const ext = path.extname(filename);
+    const baseName = path.basename(filename, ext).replace(/[^a-zA-Z0-9_\-. ]/g, "_");
+    const sanitizedFilename = `${baseName}${ext}`;
+
+    // Ensure assets directory exists.
+    const assetsDir = path.join(process.cwd(), "public", "assets");
+    if (!existsSync(assetsDir)) mkdirSync(assetsDir, { recursive: true });
+
+    const outputPath = path.join(assetsDir, sanitizedFilename);
+    const writeStream = createWriteStream(outputPath);
+
+    // Concatenate all parts in order by streaming (constant memory).
+    for (let i = 0; i < totalChunks; i++) {
+      await pipeline(createReadStream(path.join(partsDir, `part${i}`)), writeStream, {
+        end: false,
+      });
+    }
+    await new Promise<void>((resolve, reject) => {
+      writeStream.on("error", reject);
+      writeStream.end(() => resolve());
+    });
+
+    // Clean up the whole temp dir for this upload.
+    await rm(partsDir, { recursive: true, force: true });
+
+    // Update DB with local path.
+    const relPath = `assets/${sanitizedFilename}`;
+    await updateProjectField(projectId, {
+      source_video: relPath,
+      status: "draft",
+    });
+
+    const updated = await getProjectById(projectId);
+    return NextResponse.json(updated);
+  } catch (err) {
+    console.error("[upload-assemble]", err);
+    return NextResponse.json({ error: "Failed to assemble video" }, { status: 500 });
   }
-
-  // Update DB with local path
-  const relPath = `assets/${sanitizedFilename}`;
-  await updateProjectField(projectId, {
-    source_video: relPath,
-    status: "draft",
-  });
-
-  const updated = await getProjectById(projectId);
-  return NextResponse.json(updated);
 }

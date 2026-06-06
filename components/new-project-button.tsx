@@ -13,16 +13,31 @@ export default function NewProjectButton() {
   async function create() {
     if (!name.trim()) return;
     setLoading(true);
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, mode }),
-    });
-    const project = await res.json();
-    setLoading(false);
-    setOpen(false);
-    setName("");
-    router.push(`/projects/${project.id}`);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, mode }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || `Error ${res.status} al crear el proyecto`);
+        setLoading(false);
+        return;
+      }
+      const project = await res.json();
+      if (!project?.id) {
+        alert("Respuesta inválida del servidor al crear el proyecto");
+        setLoading(false);
+        return;
+      }
+      setOpen(false);
+      setName("");
+      router.push(`/projects/${project.id}`);
+    } catch {
+      alert("Error de conexión al crear el proyecto");
+      setLoading(false);
+    }
   }
 
   return (

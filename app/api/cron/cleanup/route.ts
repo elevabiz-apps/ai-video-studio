@@ -2,10 +2,13 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import path from "path";
 import fs from "fs";
+import { rm } from "fs/promises";
 import { projectQueries, clipQueries, renderQueries, type Project, type Clip, type Render } from "@/lib/db";
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), ".studio");
 const ASSETS_DIR = path.join(DATA_DIR, "assets");
+// Temp dir for in-progress chunked uploads (see app/api/upload-chunk/route.ts).
+const UPLOAD_TMP = path.join(DATA_DIR, "tmp-uploads");
 
 // Temp files (.wav, large intermediate videos) are deleted as soon as the
 // project is processed. Clip outputs are kept indefinitely.
@@ -27,7 +30,14 @@ const TEMP_MAX_AGE_MS = 2 * 60 * 60 * 1000; // 2h fallback for orphaned temps
  *    - _vertical.mp4 files older than 2h
  *    - drive_* source files that have been processed (not linked to any project source)
  */
-export async function GET() {
+export async function GET(req: Request) {
+  // Opt-in auth: if CRON_SECRET is set, require it. No-op (backward compatible)
+  // when the env var is unset, so existing schedulers keep working.
+  const secret = process.env.CRON_SECRET;
+  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const results: { deleted: string[]; skipped: string[]; errors: string[]; freedMB: number } = {
     deleted: [],
     skipped: [],
@@ -84,6 +94,23 @@ export async function GET() {
 
     // ── Step 3: Scan and delete ───────────────────────────────────────────────
     const now = Date.now();
+
+    // Prune abandoned chunked-upload temp dirs (tab closed mid-upload) older than 2h.
+    if (fs.existsSync(UPLOAD_TMP)) {
+      for (const entry of fs.readdirSync(UPLOAD_TMP)) {
+        const dirPath = path.join(UPLOAD_TMP, entry);
+        try {
+          const stat = fs.statSync(dirPath);
+          if (stat.isDirectory() && now - stat.mtimeMs > TEMP_MAX_AGE_MS) {
+            await rm(dirPath, { recursive: true, force: true });
+            results.deleted.push(`${entry}/ (orphan upload parts)`);
+          }
+        } catch (err) {
+          results.errors.push(`${entry}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
     const files = fs.readdirSync(ASSETS_DIR);
 
     for (const file of files) {

@@ -295,6 +295,18 @@ export type Job = {
   updated_at: string;
 };
 
+// Guard against SQL injection via dynamic column names in updateField helpers.
+// The generic updateField methods interpolate object KEYS into the SET clause,
+// so any key that ever comes from user input could inject SQL. Column names must
+// be plain identifiers — values are still bound via `?` placeholders.
+function assertSafeColumns(keys: string[]) {
+  for (const k of keys) {
+    if (!/^[a-z_][a-z0-9_]*$/i.test(k)) {
+      throw new Error(`Invalid column name in update: ${k}`);
+    }
+  }
+}
+
 // Project queries
 export const projectQueries = {
   get getAll() { return getDb().prepare<[], Project>("SELECT * FROM projects ORDER BY created_at DESC"); },
@@ -304,6 +316,7 @@ export const projectQueries = {
   updateField(id: string, fields: Partial<Omit<Project, "id" | "created_at">>) {
     const keys = Object.keys(fields).filter((k) => k !== "updated_at");
     if (keys.length === 0) return;
+    assertSafeColumns(keys);
     const setClause = keys.map((k) => `${k} = ?`).join(", ");
     const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
     getDb().prepare(`UPDATE projects SET ${setClause}, updated_at = datetime('now') WHERE id = ?`).run(...values, id);
@@ -332,6 +345,7 @@ export const renderQueries = {
 // Clip queries
 export const clipQueries = {
   get getByProject() { return getDb().prepare<[string], Clip>("SELECT * FROM clips WHERE project_id = ? ORDER BY sort_order ASC"); },
+  get getById() { return getDb().prepare<[string], Clip>("SELECT * FROM clips WHERE id = ?"); },
   get getAll() { return getDb().prepare<[], Clip>("SELECT * FROM clips ORDER BY sort_order ASC"); },
   get create() { return getDb().prepare<[string, string, number, number], void>("INSERT INTO clips (id, project_id, start_seconds, end_seconds) VALUES (?, ?, ?, ?)"); },
   get updateScore() { return getDb().prepare<[number, string, string], void>("UPDATE clips SET ai_score = ?, ai_reasoning = ? WHERE id = ?"); },
@@ -403,6 +417,7 @@ export const socialAccountQueries = {
   updateField(id: string, fields: Partial<Omit<SocialAccount, "id" | "created_at">>) {
     const keys = Object.keys(fields).filter((k) => k !== "updated_at");
     if (keys.length === 0) return;
+    assertSafeColumns(keys);
     const setClause = keys.map((k) => `${k} = ?`).join(", ");
     const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
     getDb().prepare(`UPDATE social_accounts SET ${setClause}, updated_at = datetime('now') WHERE id = ?`).run(...values, id);
@@ -450,6 +465,7 @@ export const contentProfileQueries = {
   updateField(id: string, fields: Partial<Omit<ContentProfile, "id" | "created_at">>) {
     const keys = Object.keys(fields).filter((k) => k !== "updated_at");
     if (keys.length === 0) return;
+    assertSafeColumns(keys);
     const setClause = keys.map((k) => `${k} = ?`).join(", ");
     const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
     getDb().prepare(`UPDATE content_profiles SET ${setClause}, updated_at = datetime('now') WHERE id = ?`).run(...values, id);
@@ -488,6 +504,7 @@ export const referencePostQueries = {
   updateField(id: string, fields: Partial<Omit<ReferencePost, "id" | "scraped_at">>) {
     const keys = Object.keys(fields);
     if (keys.length === 0) return;
+    assertSafeColumns(keys);
     const setClause = keys.map((k) => `${k} = ?`).join(", ");
     const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
     getDb().prepare(`UPDATE reference_posts SET ${setClause} WHERE id = ?`).run(...values, id);
@@ -550,6 +567,7 @@ export const autoConfigQueries = {
   updateField(id: string, fields: Partial<Omit<AutoConfig, "id" | "created_at">>) {
     const keys = Object.keys(fields).filter((k) => k !== "updated_at");
     if (keys.length === 0) return;
+    assertSafeColumns(keys);
     const setClause = keys.map((k) => `${k} = ?`).join(", ");
     const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
     getDb().prepare(`UPDATE auto_configs SET ${setClause}, updated_at = datetime('now') WHERE id = ?`).run(...values, id);
@@ -583,6 +601,7 @@ export const driveSyncQueries = {
   updateField(id: string, fields: Partial<Omit<DriveSyncEntry, "id" | "created_at">>) {
     const keys = Object.keys(fields).filter((k) => k !== "updated_at");
     if (keys.length === 0) return;
+    assertSafeColumns(keys);
     const setClause = keys.map((k) => `${k} = ?`).join(", ");
     const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
     getDb().prepare(`UPDATE drive_sync_log SET ${setClause}, updated_at = datetime('now') WHERE id = ?`).run(...values, id);

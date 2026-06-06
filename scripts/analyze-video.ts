@@ -46,13 +46,20 @@ const probe = JSON.parse(output);
 const videoStream = probe.streams?.find((s: any) => s.codec_type === "video");
 const audioStream = probe.streams?.find((s: any) => s.codec_type === "audio");
 
+// Parse ffprobe's r_frame_rate ("30000/1001") into a number — safely, without eval()
+// (eval on subprocess output is an RCE risk).
+function parseRate(rate?: string): number {
+  if (!rate) return 30;
+  const [num, den] = String(rate).split("/").map(Number);
+  if (!num || !den) return Number(num) || 30;
+  return num / den;
+}
+
 const metadata = {
   duration: parseFloat(probe.format?.duration || "0"),
   width: videoStream?.width || 0,
   height: videoStream?.height || 0,
-  fps: videoStream?.r_frame_rate
-    ? eval(videoStream.r_frame_rate)
-    : 30,
+  fps: parseRate(videoStream?.r_frame_rate),
   videoCodec: videoStream?.codec_name || "unknown",
   audioCodec: audioStream?.codec_name || "none",
   bitrate: parseInt(probe.format?.bit_rate || "0", 10),

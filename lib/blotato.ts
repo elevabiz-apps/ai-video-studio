@@ -88,13 +88,11 @@ export async function getConnectedAccounts(): Promise<BlotatoAccount[]> {
  * Blotato expects a multipart/form-data upload with the video file.
  */
 export async function uploadMedia(
-  fileBuffer: Buffer,
-  filename: string,
-  mimeType: string = "video/mp4"
+  file: Blob,
+  filename: string
 ): Promise<BlotatoMediaUpload> {
   const formData = new FormData();
-  const blob = new Blob([fileBuffer], { type: mimeType });
-  formData.append("file", blob, filename);
+  formData.append("file", file, filename);
 
   return blotatoFetch<BlotatoMediaUpload>("/media/upload", {
     method: "POST",

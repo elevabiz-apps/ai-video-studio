@@ -2,6 +2,13 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getJobById } from "@/lib/db-async";
 
+// Parse job.result defensively — a corrupt/partial value must not throw before the
+// stream-close check below (that would poll a finished job forever).
+function safeParse(s: string | null): unknown {
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return null; }
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
@@ -31,7 +38,7 @@ export async function GET(
             progress: job.progress,
             current_step: job.current_step,
             error: job.error,
-            result: job.result ? JSON.parse(job.result) : null,
+            result: safeParse(job.result),
           });
 
           if (job.status === "complete" || job.status === "failed") {

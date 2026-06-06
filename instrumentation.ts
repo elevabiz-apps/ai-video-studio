@@ -53,7 +53,11 @@ export async function register() {
       const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN
         ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
         : "http://localhost:3000";
-      const res = await fetch(`${baseUrl}/api/cron/cleanup`);
+      const res = await fetch(`${baseUrl}/api/cron/cleanup`, {
+        headers: process.env.CRON_SECRET
+          ? { authorization: `Bearer ${process.env.CRON_SECRET}` }
+          : {},
+      });
       const data = await res.json() as { message?: string };
       console.log("[cleanup-cron]", data.message ?? "done");
     } catch (err) {

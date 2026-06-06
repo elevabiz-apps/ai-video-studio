@@ -264,6 +264,20 @@ export async function getClipsByProject(projectId: string): Promise<Clip[]> {
   return sqlite().clipQueries.getByProject.all(projectId) as Clip[];
 }
 
+export async function getClipById(id: string): Promise<Clip | null> {
+  if (hasSupabase()) {
+    const { data, error } = await supabase()
+      .from("clips")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && (error as { code?: string }).code === "PGRST116") return null;
+    if (error) throw error;
+    return data as Clip;
+  }
+  return (sqlite().clipQueries.getById.get(id) as Clip) ?? null;
+}
+
 export async function createClip(
   id: string,
   projectId: string,

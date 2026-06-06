@@ -276,7 +276,9 @@ async function detectFaceCenter(
 
     let stdout = "";
     proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-    proc.stderr.on("data", (chunk: Buffer) => { process.stderr.write(chunk); });
+    // Drain stderr per-line — process.stderr.write() blocks on Railway pipe mode.
+    proc.stderr.on("data", (chunk: Buffer) =>
+      chunk.toString().split("\n").filter(Boolean).forEach((l) => console.error(`[face-detect] ${l}`)));
 
     proc.on("close", (code) => {
       try {
@@ -330,8 +332,12 @@ function reframeToVertical(
         stdio: ["ignore", "pipe", "pipe"],
       }
     );
-    proc.stdout.on("data", (chunk: Buffer) => process.stdout.write(chunk));
-    proc.stderr.on("data", (chunk: Buffer) => process.stderr.write(chunk));
+    // Drain pipes non-blockingly — process.stdout/stderr.write() blocks on Railway
+    // (pipe mode) and can deadlock on ffmpeg's verbose output (see cutSilences).
+    const onData = (chunk: Buffer) =>
+      chunk.toString().split("\n").filter(Boolean).forEach((l) => console.log(`[reframe] ${l}`));
+    proc.stdout.on("data", onData);
+    proc.stderr.on("data", onData);
     proc.on("close", (code) => {
       if (code === 0) resolve();
       else reject(new Error(`reframe ffmpeg exited with code ${code}`));
@@ -368,6 +374,11 @@ function cutClip(
         stdio: ["ignore", "pipe", "pipe"],
       }
     );
+    // Drain stdout/stderr — unconsumed pipes fill the OS buffer and deadlock ffmpeg.
+    const onData = (chunk: Buffer) =>
+      chunk.toString().split("\n").filter(Boolean).forEach((l) => console.log(`[cut] ${l}`));
+    proc.stdout.on("data", onData);
+    proc.stderr.on("data", onData);
     proc.on("close", (code) => {
       if (code === 0) resolve();
       else reject(new Error(`ffmpeg cut exited with code ${code}`));

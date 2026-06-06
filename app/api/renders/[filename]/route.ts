@@ -18,39 +18,44 @@ export async function GET(
 ) {
   const { filename } = await params;
 
-  // Sanitize: only allow filenames, no path traversal
-  if (filename.includes("/") || filename.includes("..") || filename.includes("\\")) {
+  // Sanitize: only allow filenames, no path traversal (incl. null bytes).
+  if (filename.includes("/") || filename.includes("..") || filename.includes("\\") || filename.includes("\0")) {
     return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
   }
 
   const filePath = path.join(process.cwd(), "public", "renders", filename);
 
-  if (!fs.existsSync(filePath)) {
-    return NextResponse.json({ error: "File not found" }, { status: 404 });
+  try {
+    if (!fs.existsSync(filePath)) {
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+
+    const stat = fs.statSync(filePath);
+    const stream = fs.createReadStream(filePath);
+
+    // Determine content type
+    const ext = path.extname(filename).toLowerCase();
+    const contentType = ext === ".mp4" ? "video/mp4" : "application/octet-stream";
+
+    // Convert Node.js ReadStream to a Web ReadableStream
+    const webStream = new ReadableStream({
+      start(controller) {
+        stream.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+        stream.on("end", () => controller.close());
+        stream.on("error", (err) => controller.error(err));
+      },
+    });
+
+    return new NextResponse(webStream, {
+      headers: {
+        "Content-Type": contentType,
+        "Content-Length": String(stat.size),
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (err) {
+    console.error("[renders]", err);
+    return NextResponse.json({ error: "Could not read file" }, { status: 500 });
   }
-
-  const stat = fs.statSync(filePath);
-  const stream = fs.createReadStream(filePath);
-
-  // Determine content type
-  const ext = path.extname(filename).toLowerCase();
-  const contentType = ext === ".mp4" ? "video/mp4" : "application/octet-stream";
-
-  // Convert Node.js ReadStream to a Web ReadableStream
-  const webStream = new ReadableStream({
-    start(controller) {
-      stream.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
-      stream.on("end", () => controller.close());
-      stream.on("error", (err) => controller.error(err));
-    },
-  });
-
-  return new NextResponse(webStream, {
-    headers: {
-      "Content-Type": contentType,
-      "Content-Length": String(stat.size),
-      "Content-Disposition": `attachment; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    },
-  });
 }
