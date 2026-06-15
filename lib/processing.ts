@@ -18,7 +18,8 @@ import {
 import { segmentCaptions } from "./clip-segmenter";
 import { smartClipVideo } from "./smart-clipper";
 import { burnSubtitles } from "./subtitle-burner";
-import { isSupabasePath, fromDbPath, downloadToBuffer } from "./storage";
+import { isR2Path, isRemotePath, fromDbPath, downloadToBuffer } from "./storage";
+import { downloadToFile as r2DownloadToFile } from "./r2";
 
 const CWD = process.cwd();
 // FFMPEG_PATH env var overrides the bundled macOS binary (used on Railway/Linux)
@@ -140,16 +141,21 @@ async function runBasePipeline(
   // ── Download from Supabase Storage if needed ──────────────────────────────
   // When source_video is a "supabase:..." path, download it to local disk first.
   let resolvedSourceRelative = sourceVideoRelative;
-  if (isSupabasePath(sourceVideoRelative)) {
+  if (isRemotePath(sourceVideoRelative)) {
     await updateJob("processing", 2, "Descargando video...");
-    const storagePath = fromDbPath(sourceVideoRelative);
-    const filename = path.basename(storagePath);
+    const storageKey = fromDbPath(sourceVideoRelative);
+    const filename = path.basename(storageKey);
     const localPath = path.join(assetsDir, filename);
     if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
     if (!fs.existsSync(localPath)) {
       await timed(timings, "download", async () => {
-        const buffer = await downloadToBuffer(storagePath);
-        fs.writeFileSync(localPath, buffer);
+        if (isR2Path(sourceVideoRelative)) {
+          // Stream R2 → disk (constant memory; a 600MB Buffer would OOM the container).
+          await r2DownloadToFile(storageKey, localPath);
+        } else {
+          const buffer = await downloadToBuffer(storageKey);
+          fs.writeFileSync(localPath, buffer);
+        }
       });
     }
     resolvedSourceRelative = `assets/${filename}`;
@@ -161,7 +167,7 @@ async function runBasePipeline(
     await updateProjectField(projectId, { original_video: sourceVideoRelative });
   }
   const originalRelative = project?.original_video
-    ? (isSupabasePath(project.original_video) ? sourceVideoRelative : project.original_video)
+    ? (isRemotePath(project.original_video) ? sourceVideoRelative : project.original_video)
     : sourceVideoRelative;
   let videoPath = path.join(CWD, "public", originalRelative);
 

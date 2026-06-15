@@ -50,6 +50,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, chunkIndex: idx });
   } catch (err) {
     console.error("[upload-chunk]", err);
+    // Surface a disk-full condition clearly instead of a generic 500 that the
+    // client reports as a confusing "error de red".
+    if (err && typeof err === "object" && (err as { code?: string }).code === "ENOSPC") {
+      return NextResponse.json(
+        { error: "No hay espacio en disco en el servidor. Configurá R2 para subir videos grandes." },
+        { status: 507 }
+      );
+    }
     return NextResponse.json({ error: "Failed to write chunk" }, { status: 500 });
   }
 }
