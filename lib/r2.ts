@@ -52,9 +52,13 @@ function client(): S3Client {
   if (!accountId || !accessKeyId || !secretAccessKey) {
     throw new Error("R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY must be set");
   }
+  // Accept either the full endpoint URL or just the account ID
+  const endpoint = accountId.startsWith("https://")
+    ? accountId
+    : `https://${accountId}.r2.cloudflarestorage.com`;
   _client = new S3Client({
     region: "auto",
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    endpoint,
     credentials: { accessKeyId, secretAccessKey },
   });
   return _client;
