@@ -280,20 +280,36 @@ async function detectFaceCenter(
     proc.stderr.on("data", (chunk: Buffer) =>
       chunk.toString().split("\n").filter(Boolean).forEach((l) => console.error(`[face-detect] ${l}`)));
 
+    // Safety net for long/large videos: never let face detection hang the whole
+    // multi-clip pipeline. If it doesn't finish in time, kill it and fall back
+    // to a centered crop (resolve null).
+    let settled = false;
+    const finish = (value: { cropX: number; cropW: number } | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      console.warn("[face-detect] Timed out (120s) — using centered crop");
+      proc.kill("SIGKILL");
+      finish(null);
+    }, 120_000);
+
     proc.on("close", (code) => {
       try {
         // Find last JSON line in stdout (mediapipe logs may precede it)
         const jsonLine = stdout.trim().split("\n").filter((l) => l.trim().startsWith("{")).pop();
         if (!jsonLine) throw new Error("No JSON output");
         const result = JSON.parse(jsonLine);
-        resolve({ cropX: result.crop_x, cropW: result.crop_w });
+        finish({ cropX: result.crop_x, cropW: result.crop_w });
       } catch {
         console.warn(`[face-detect] Failed to parse output (code ${code}), using centered crop`);
-        resolve(null);
+        finish(null);
       }
     });
 
-    proc.on("error", () => resolve(null));
+    proc.on("error", () => finish(null));
   });
 }
 
