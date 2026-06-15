@@ -55,3 +55,47 @@ export const offsetCaptions = <T extends {startMs: number; endMs: number}>(
       endMs: c.endMs - offsetMs,
     }))
     .filter((c) => c.startMs >= 0 && c.endMs > 0);
+
+/**
+ * Re-map caption timestamps from the ORIGINAL video timeline onto the compressed
+ * (silence-removed) timeline that JumpCut produces for a given cut list.
+ *
+ * `segments` are the KEPT (speech) segments in seconds — the SAME list passed to
+ * JumpCut. Without this, captions generated against the original video appear at
+ * the wrong time once the silences between segments are dropped (the desync the
+ * user cares about). A single offset is not enough: removal is multi-segment, so
+ * each timestamp must subtract the cumulative removed time that precedes it.
+ *
+ * A timestamp that falls inside a removed gap snaps to the start of the next kept
+ * segment; captions that collapse to zero length (fully inside a gap) are dropped.
+ */
+export const remapCaptionsThroughCutList = <
+  T extends {startMs: number; endMs: number; timestampMs?: number | null},
+>(
+  captions: T[],
+  segments: Segment[],
+): T[] => {
+  if (segments.length === 0) return captions;
+  const sorted = [...segments].sort((a, b) => a.startSeconds - b.startSeconds);
+
+  const mapTime = (tMs: number): number => {
+    let cumulativeMs = 0;
+    for (const seg of sorted) {
+      const segStartMs = seg.startSeconds * 1000;
+      const segEndMs = seg.endSeconds * 1000;
+      if (tMs < segStartMs) return cumulativeMs; // inside a removed gap → snap to seg start
+      if (tMs <= segEndMs) return cumulativeMs + (tMs - segStartMs);
+      cumulativeMs += segEndMs - segStartMs;
+    }
+    return cumulativeMs; // after the last kept segment
+  };
+
+  return captions
+    .map((c) => ({
+      ...c,
+      startMs: mapTime(c.startMs),
+      endMs: mapTime(c.endMs),
+      ...(c.timestampMs != null ? {timestampMs: mapTime(c.timestampMs)} : {}),
+    }))
+    .filter((c) => c.endMs > c.startMs);
+};

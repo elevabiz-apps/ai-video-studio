@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { clipQueries } from "@/lib/db";
+import { updateClipApproval } from "@/lib/db-async";
 
 /**
  * PATCH /api/clips/:id/approve
@@ -22,7 +22,7 @@ export async function PATCH(
   }
 
   try {
-    clipQueries.updateApproval.run(status, id);
+    await updateClipApproval(id, status);
     return NextResponse.json({ ok: true, id, approval_status: status });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
