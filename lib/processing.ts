@@ -25,6 +25,38 @@ const CWD = process.cwd();
 const COMPOSITOR_DIR = path.join(CWD, "node_modules", "@remotion", "compositor-darwin-arm64");
 const FFMPEG_BIN = process.env.FFMPEG_PATH ?? path.join(COMPOSITOR_DIR, "ffmpeg");
 
+// ─── Step timing ────────────────────────────────────────────────────────────
+// Records wall-clock per pipeline step so we can see WHERE the time goes on a
+// real (long) video before optimizing. The breakdown is logged and stored in
+// the job result (exposed via the job-status endpoint) — no Railway dashboard
+// needed to read it.
+type TimingMark = { step: string; seconds: number };
+
+async function timed<T>(
+  marks: TimingMark[],
+  step: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const t0 = Date.now();
+  try {
+    return await fn();
+  } finally {
+    const seconds = Math.round((Date.now() - t0) / 100) / 10;
+    marks.push({ step, seconds });
+    console.log(`[timing] ${step}: ${seconds}s`);
+  }
+}
+
+function logTimingSummary(marks: TimingMark[]): { steps: TimingMark[]; totalSeconds: number } {
+  const totalSeconds = Math.round(marks.reduce((s, m) => s + m.seconds, 0) * 10) / 10;
+  const slowest = [...marks].sort((a, b) => b.seconds - a.seconds).slice(0, 3);
+  console.log(
+    `[timing] TOTAL ${totalSeconds}s · slowest: ` +
+      slowest.map((m) => `${m.step} ${m.seconds}s`).join(", ")
+  );
+  return { steps: marks, totalSeconds };
+}
+
 function runScript(
   scriptPath: string,
   args: string[],
@@ -97,7 +129,8 @@ async function runBasePipeline(
     step: string,
     error?: string
   ) => Promise<void>
-): Promise<{ captionsJson: string | null; processedVideoPath: string }> {
+): Promise<{ captionsJson: string | null; processedVideoPath: string; timings: TimingMark[] }> {
+  const timings: TimingMark[] = [];
   // Always use the original video — save it on first run and reuse it on re-runs.
   // This prevents re-processing an already-processed file (which creates _procesado_procesado_... chains).
   const project = await getProjectById(projectId);
@@ -114,8 +147,10 @@ async function runBasePipeline(
     const localPath = path.join(assetsDir, filename);
     if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
     if (!fs.existsSync(localPath)) {
-      const buffer = await downloadToBuffer(storagePath);
-      fs.writeFileSync(localPath, buffer);
+      await timed(timings, "download", async () => {
+        const buffer = await downloadToBuffer(storagePath);
+        fs.writeFileSync(localPath, buffer);
+      });
     }
     resolvedSourceRelative = `assets/${filename}`;
     await updateProjectField(projectId, { source_video: resolvedSourceRelative });
@@ -150,11 +185,11 @@ async function runBasePipeline(
 
   // Step 1: Analyze original video
   await updateJob("processing", 5, "Analizando video...");
-  await runScript("scripts/analyze-video.ts", [videoPath]);
+  await timed(timings, "analyze", () => runScript("scripts/analyze-video.ts", [videoPath]));
 
   // Step 2: Detect silence in original video
   await updateJob("processing", 18, "Detectando silencios...");
-  await runScript("scripts/detect-silence.ts", [videoPath]);
+  await timed(timings, "detect-silence", () => runScript("scripts/detect-silence.ts", [videoPath]));
 
   // Step 3: Cut silences → produce a processed video
   await updateJob("processing", 32, "Cortando silencios...");
@@ -164,17 +199,17 @@ async function runBasePipeline(
   const processedVideoPath = path.join(assetsDir, processedFileName);
   const processedVideoRelative = `assets/${processedFileName}`;
 
-  await cutSilences(videoPath, processedVideoPath);
+  await timed(timings, "cut-silences", () => cutSilences(videoPath, processedVideoPath));
   await updateProjectField(projectId, { source_video: processedVideoRelative });
 
   // Step 4: Extract audio from the PROCESSED video (ensures sync with what's displayed)
   await updateJob("processing", 50, "Extrayendo audio...");
-  await runScript("scripts/extract-audio.ts", [processedVideoPath]);
+  await timed(timings, "extract-audio", () => runScript("scripts/extract-audio.ts", [processedVideoPath]));
 
   // Step 5: Transcribe
   await updateJob("processing", 65, "Transcribiendo con Whisper...");
   const audioPath = path.join(assetsDir, "audio.wav");
-  await runScript("scripts/transcribe.ts", [audioPath]);
+  await timed(timings, "transcribe", () => runScript("scripts/transcribe.ts", [audioPath]));
 
   // Step 6: Save results to DB
   await updateJob("processing", 85, "Guardando resultados...");
@@ -208,7 +243,7 @@ async function runBasePipeline(
     duration_seconds: durationSeconds,
   });
 
-  return { captionsJson, processedVideoPath };
+  return { captionsJson, processedVideoPath, timings };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -230,7 +265,7 @@ export async function spawnPipeline(
   }
 
   try {
-    const { captionsJson } = await runBasePipeline(
+    const { captionsJson, timings } = await runBasePipeline(
       jobId,
       projectId,
       sourceVideoRelative,
@@ -238,7 +273,8 @@ export async function spawnPipeline(
     );
 
     await updateProjectField(projectId, { status: "ready" });
-    await setJobResult(jobId, JSON.stringify({ hasCaptions: !!captionsJson }));
+    const timing = logTimingSummary(timings);
+    await setJobResult(jobId, JSON.stringify({ hasCaptions: !!captionsJson, timing }));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await updateJob("failed", 0, "Error", message);
@@ -419,7 +455,7 @@ export async function spawnMultiClipPipeline(
 
   try {
     // Steps 1-6: silence removal + transcription (shared with single pipeline)
-    const { captionsJson, processedVideoPath } = await runBasePipeline(
+    const { captionsJson, processedVideoPath, timings } = await runBasePipeline(
       jobId,
       projectId,
       sourceVideoRelative,
@@ -444,7 +480,7 @@ export async function spawnMultiClipPipeline(
     if (isHorizontal) {
       // Detect face position before reframing
       await updateJob("processing", 86, "Detectando posición del rostro...");
-      const faceResult = await detectFaceCenter(processedVideoPath);
+      const faceResult = await timed(timings, "face-detect", () => detectFaceCenter(processedVideoPath));
 
       if (faceResult?.cropX !== undefined) {
         await updateJob("processing", 87, "Reencuadrando a vertical centrado en rostro...");
@@ -457,11 +493,13 @@ export async function spawnMultiClipPipeline(
       const verticalAbsPath = path.join(CWD, "public", "assets", verticalFileName);
       const verticalRelPath = `assets/${verticalFileName}`;
 
-      await reframeToVertical(
-        processedVideoPath,
-        verticalAbsPath,
-        faceResult?.cropX,
-        faceResult?.cropW
+      await timed(timings, "reframe-9:16", () =>
+        reframeToVertical(
+          processedVideoPath,
+          verticalAbsPath,
+          faceResult?.cropX,
+          faceResult?.cropW
+        )
       );
 
       finalVideoPath = verticalAbsPath;
@@ -502,7 +540,7 @@ export async function spawnMultiClipPipeline(
           }
         } catch { /* no profile available, use default scoring */ }
 
-        const smartClips = await smartClipVideo(captions, contentProfile);
+        const smartClips = await timed(timings, "smart-clip-ia", () => smartClipVideo(captions, contentProfile));
         if (smartClips.length > 0) {
           const sorted = [...smartClips].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
           segments = sorted.map((c) => ({
@@ -556,6 +594,7 @@ export async function spawnMultiClipPipeline(
     const finalBaseName = path.basename(finalVideoPath, ".mp4");
     const assetsDir = path.join(CWD, "public", "assets");
 
+    await timed(timings, "cut+subtitulos-clips", async () => {
     for (let i = 0; i < gappedSegments.length; i++) {
       const progressPct = 92 + Math.round(((i + 1) / gappedSegments.length) * 7);
       await updateJob("processing", progressPct, `Cortando clip ${i + 1} de ${gappedSegments.length}...`);
@@ -600,9 +639,14 @@ export async function spawnMultiClipPipeline(
         console.warn(`Could not cut clip ${i + 1}:`, cutErr);
       }
     }
+    });
 
     await updateProjectField(projectId, { status: "ready" });
-    await setJobResult(jobId, JSON.stringify({ hasCaptions: true, clipCount: segments.length }));
+    const timing = logTimingSummary(timings);
+    await setJobResult(
+      jobId,
+      JSON.stringify({ hasCaptions: true, clipCount: segments.length, timing })
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await updateJob("failed", 0, "Error", message);

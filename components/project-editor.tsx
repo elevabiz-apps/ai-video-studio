@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Project, Render, Clip } from "@/lib/db";
-import PipelineProgress from "./pipeline-progress";
+import PipelineProgress, { TimingBreakdown, type Timing } from "./pipeline-progress";
 import ClipList from "./clip-list";
 import PublishDialog from "./publish-dialog";
 import dynamic from "next/dynamic";
@@ -29,6 +29,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [timing, setTiming] = useState<Timing | null>(null);
   const [pipelineDone, setPipelineDone] = useState(
     !!initialProject.captions && !!initialProject.silence_data
   );
@@ -233,8 +234,9 @@ export default function ProjectEditor({ project: initialProject, renders: initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function onPipelineComplete() {
+  async function onPipelineComplete(t: Timing | null) {
     setPipelineDone(true);
+    if (t) setTiming(t);
     setJobId(null);
     await refreshProject();
     // Reload clips for multi-clip mode
@@ -466,6 +468,7 @@ export default function ProjectEditor({ project: initialProject, renders: initia
                 >
                   Re-procesar
                 </button>
+                {timing && <TimingBreakdown timing={timing} />}
               </div>
             ) : isFailed ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

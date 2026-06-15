@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+export type Timing = { steps: { step: string; seconds: number }[]; totalSeconds: number };
+
 interface PipelineProgressProps {
   jobId: string;
   mode?: "single" | "clips";
-  onComplete?: () => void;
+  onComplete?: (timing: Timing | null) => void;
   onProgress?: (progress: number, step: string) => void;
 }
 
@@ -59,6 +61,7 @@ export default function PipelineProgress({ jobId, mode = "single", onComplete, o
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [timing, setTiming] = useState<Timing | null>(null);
 
   useEffect(() => {
     const es = new EventSource(`/api/process/${jobId}`);
@@ -70,10 +73,14 @@ export default function PipelineProgress({ jobId, mode = "single", onComplete, o
       setCurrentStep(data.current_step);
       onProgress?.(data.progress ?? 0, data.current_step ?? "");
       if (data.error) setError(data.error);
+      const t: Timing | null = data.result?.timing?.steps?.length
+        ? (data.result.timing as Timing)
+        : null;
+      if (t) setTiming(t);
 
       if (data.status === "complete") {
         es.close();
-        onComplete?.();
+        onComplete?.(t);
       }
       if (data.status === "failed") {
         es.close();
@@ -171,6 +178,44 @@ export default function PipelineProgress({ jobId, mode = "single", onComplete, o
           {error}
         </div>
       )}
+
+      {timing && <TimingBreakdown timing={timing} />}
+    </div>
+  );
+}
+
+// Compact "where did the time go" panel, shown once processing completes.
+// Steps sorted slowest-first with a proportional bar so the bottleneck is obvious.
+export function TimingBreakdown({ timing }: { timing: Timing }) {
+  const steps = [...timing.steps].sort((a, b) => b.seconds - a.seconds);
+  const max = Math.max(1, ...steps.map((s) => s.seconds));
+  const fmt = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${s}s`);
+
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: "12px 14px",
+        background: "var(--muted)",
+        borderRadius: 8,
+        fontSize: 12,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontWeight: 600 }}>
+        <span>⏱ Tiempos por paso</span>
+        <span style={{ color: "var(--muted-foreground)" }}>Total {fmt(timing.totalSeconds)}</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {steps.map((s) => (
+          <div key={s.step} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ flex: "0 0 150px", color: "var(--muted-foreground)" }}>{s.step}</span>
+            <div style={{ flex: 1, height: 8, background: "var(--border)", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${(s.seconds / max) * 100}%`, background: "var(--accent)", borderRadius: 4 }} />
+            </div>
+            <span style={{ flex: "0 0 56px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(s.seconds)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
