@@ -72,12 +72,14 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
         <VideoClip src={src} />
       )}
 
-      {/* Captions */}
+      {/* Captions — when silences are removed, re-map caption timestamps onto the
+          jump-cut (compressed) timeline so they stay in sync with the audio. */}
       {showCaptions && captionsPath && (
         <CaptionOverlay
           captionsSource={captionsPath}
           preset={captionPreset}
           position="bottom"
+          cutSegments={removeSilence && segments.length > 0 ? segments : undefined}
         />
       )}
 

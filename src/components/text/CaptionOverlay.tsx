@@ -14,6 +14,8 @@ import {
   type TikTokPage,
 } from "@remotion/captions";
 import {FONT_FAMILIES, loadGoogleFont} from "../../presets/fonts";
+import {remapCaptionsThroughCutList} from "../../utils/editing";
+import type {Segment} from "../media/JumpCut";
 
 export type CaptionPreset = "classic" | "bold" | "outline" | "glow" | "box" | "impacto" | "rosa" | "impacto_rosa";
 
@@ -29,6 +31,12 @@ export interface CaptionOverlayProps {
   textColor?: string;
   combineTokensWithinMs?: number;
   offsetMs?: number;
+  /**
+   * Kept (speech) segments in seconds — the same cut list passed to JumpCut.
+   * When provided, captions are re-mapped from the original timeline onto the
+   * silence-removed timeline so they stay in sync with the jump-cut video.
+   */
+  cutSegments?: Segment[];
   style?: React.CSSProperties;
 }
 
@@ -105,6 +113,7 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
   textColor = "#ffffff",
   combineTokensWithinMs = 1200,
   offsetMs = 0,
+  cutSegments,
   style,
 }) => {
   const [captions, setCaptions] = useState<Caption[] | null>(captionsData ?? null);
@@ -117,28 +126,38 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
   loadGoogleFont(fontName);
 
   useEffect(() => {
+    // Re-map onto the silence-removed timeline (if a cut list is given), THEN
+    // shift for clip extraction. Order matters: remap is original→compressed,
+    // offset is compressed→clip-local.
+    const transform = (data: Caption[]): Caption[] => {
+      let out = data;
+      if (cutSegments && cutSegments.length > 0) {
+        out = remapCaptionsThroughCutList(out, cutSegments);
+      }
+      if (offsetMs) {
+        out = out.map((c) => ({
+          ...c,
+          startMs: c.startMs - offsetMs,
+          endMs: c.endMs - offsetMs,
+        }));
+      }
+      return out.filter((c) => c.startMs >= 0 && c.endMs > 0);
+    };
+
     // If captionsData was provided directly, skip fetch
     if (captionsData) {
-      setCaptions(captionsData);
+      setCaptions(transform(captionsData));
       return;
     }
     if (!captionsSource || !handle) return;
     fetch(staticFile(captionsSource))
       .then((r) => r.json())
       .then((data: Caption[]) => {
-        // Apply offset if extracting a clip
-        const adjusted = offsetMs
-          ? data.map((c) => ({
-              ...c,
-              startMs: c.startMs - offsetMs,
-              endMs: c.endMs - offsetMs,
-            }))
-          : data;
-        setCaptions(adjusted.filter((c) => c.startMs >= 0));
+        setCaptions(transform(data));
         continueRender(handle);
       })
       .catch((e) => cancelRender(e));
-  }, [captionsSource, captionsData, offsetMs, handle]);
+  }, [captionsSource, captionsData, offsetMs, cutSegments, handle]);
 
   const pages = useMemo(() => {
     if (!captions) return [];

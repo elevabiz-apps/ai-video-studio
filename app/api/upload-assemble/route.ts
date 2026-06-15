@@ -16,9 +16,15 @@ const UPLOAD_TMP = path.join(DATA_DIR, "tmp-uploads");
 export async function POST(req: NextRequest) {
   const { projectId, uploadId, filename, totalChunks } = await req.json();
 
-  if (!projectId || !uploadId || !filename || totalChunks == null) {
+  if (
+    !projectId ||
+    !uploadId ||
+    !filename ||
+    !Number.isInteger(totalChunks) ||
+    totalChunks < 1
+  ) {
     return NextResponse.json(
-      { error: "Missing projectId, uploadId, filename, or totalChunks" },
+      { error: "Missing or invalid projectId, uploadId, filename, or totalChunks" },
       { status: 400 }
     );
   }

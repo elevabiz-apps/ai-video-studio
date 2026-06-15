@@ -310,6 +310,21 @@ export async function updateClipScore(
   sqlite().clipQueries.updateScore.run(score, reasoning, id);
 }
 
+export async function updateClipApproval(
+  id: string,
+  status: "approved" | "rejected" | "pending"
+): Promise<void> {
+  if (hasSupabase()) {
+    const { error } = await supabase()
+      .from("clips")
+      .update({ approval_status: status })
+      .eq("id", id);
+    if (error) throw error;
+    return;
+  }
+  sqlite().clipQueries.updateApproval.run(status, id);
+}
+
 export async function updateClipName(id: string, name: string): Promise<void> {
   if (hasSupabase()) {
     const { error } = await supabase()
