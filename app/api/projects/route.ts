@@ -4,8 +4,27 @@ import { getAllProjects, createProject, getProjectById } from "@/lib/db-async";
 import { randomUUID } from "crypto";
 
 export async function GET() {
-  const projects = await getAllProjects();
-  return NextResponse.json(projects);
+  try {
+    const projects = await getAllProjects();
+    return NextResponse.json(projects);
+  } catch (err) {
+    // Surface the real DB error instead of a bare empty 500. The most common
+    // cause is PGRST205 ("Could not find the table 'public.projects' in the
+    // schema cache") when the Supabase schema is missing/drifted — actionable
+    // fix is to run supabase-schema.sql (which reloads the PostgREST cache).
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[api/projects] GET failed:", message);
+    return NextResponse.json(
+      {
+        error: "No se pudieron cargar los proyectos.",
+        detail: message,
+        fix: message.includes("schema cache")
+          ? "Correr supabase-schema.sql en Supabase → SQL Editor (crea las tablas + recarga el cache de PostgREST)."
+          : undefined,
+      },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {
