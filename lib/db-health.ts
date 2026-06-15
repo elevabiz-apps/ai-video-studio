@@ -28,9 +28,12 @@ export async function checkDbHealth(): Promise<DbHealth> {
   const missing: string[] = [];
 
   for (const table of REQUIRED_TABLES) {
-    // head: true → request liviano (sin filas), solo valida que la tabla exista.
+    // select real con limit(1): un `head:true` puede dar FALSO POSITIVO (reportar
+    // la tabla como presente) mientras un select completo falla con PGRST205
+    // ("schema cache"). Un GET real reproduce exactamente lo que hace la app, así
+    // el health refleja si la app puede de verdad leer la tabla.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (sb as any).from(table).select("id", { head: true, count: "exact" });
+    const { error } = await (sb as any).from(table).select("id").limit(1);
     if (!error) {
       present.push(table);
       continue;
