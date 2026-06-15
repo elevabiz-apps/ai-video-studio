@@ -12,13 +12,27 @@ export async function GET() {
     // cause is PGRST205 ("Could not find the table 'public.projects' in the
     // schema cache") when the Supabase schema is missing/drifted — actionable
     // fix is to run supabase-schema.sql (which reloads the PostgREST cache).
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[api/projects] GET failed:", message);
+    // Supabase/PostgREST errors are plain objects ({message, code, details,
+    // hint}), not Error instances, so handle both shapes.
+    const message =
+      err instanceof Error
+        ? err.message
+        : err && typeof err === "object" && "message" in err
+          ? String((err as { message?: unknown }).message)
+          : String(err);
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code?: unknown }).code)
+        : undefined;
+    console.error("[api/projects] GET failed:", code, message);
+    const isMissingSchema =
+      code === "PGRST205" || code === "PGRST205".toLowerCase() || message.includes("schema cache");
     return NextResponse.json(
       {
         error: "No se pudieron cargar los proyectos.",
         detail: message,
-        fix: message.includes("schema cache")
+        code,
+        fix: isMissingSchema
           ? "Correr supabase-schema.sql en Supabase → SQL Editor (crea las tablas + recarga el cache de PostgREST)."
           : undefined,
       },
