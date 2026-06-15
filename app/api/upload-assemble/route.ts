@@ -82,6 +82,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(updated);
   } catch (err) {
     console.error("[upload-assemble]", err);
+    if (err && typeof err === "object" && (err as { code?: string }).code === "ENOSPC") {
+      return NextResponse.json(
+        { error: "No hay espacio en disco en el servidor. Configurá R2 para subir videos grandes." },
+        { status: 507 }
+      );
+    }
     return NextResponse.json({ error: "Failed to assemble video" }, { status: 500 });
   }
 }

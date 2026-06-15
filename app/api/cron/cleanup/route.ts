@@ -6,7 +6,10 @@ import { rm } from "fs/promises";
 import { projectQueries, clipQueries, renderQueries, type Project, type Clip, type Render } from "@/lib/db";
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), ".studio");
-const ASSETS_DIR = path.join(DATA_DIR, "assets");
+// Videos/intermediates are written to public/assets (see upload-assemble and
+// lib/processing.ts), NOT DATA_DIR/assets. Cleaning the wrong directory meant
+// processed videos were never reclaimed and piled up — point at the real dir.
+const ASSETS_DIR = path.join(process.cwd(), "public", "assets");
 // Temp dir for in-progress chunked uploads (see app/api/upload-chunk/route.ts).
 const UPLOAD_TMP = path.join(DATA_DIR, "tmp-uploads");
 

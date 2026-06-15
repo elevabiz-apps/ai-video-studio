@@ -49,12 +49,30 @@ export function toDbPath(storagePath: string): string {
   return `supabase:${storagePath}`;
 }
 
-/** Extract the actual storage path from a DB value */
+/** Convert an R2 object key to the "r2:" prefixed value stored in DB */
+export function toR2DbPath(key: string): string {
+  return `r2:${key}`;
+}
+
+/** Extract the actual storage path/key from a DB value (handles both prefixes) */
 export function fromDbPath(dbPath: string): string {
-  return dbPath.startsWith("supabase:") ? dbPath.slice("supabase:".length) : dbPath;
+  if (dbPath.startsWith("supabase:")) return dbPath.slice("supabase:".length);
+  if (dbPath.startsWith("r2:")) return dbPath.slice("r2:".length);
+  return dbPath;
 }
 
 /** Returns true if the path points to Supabase Storage (vs local disk) */
 export function isSupabasePath(dbPath: string): boolean {
   return dbPath.startsWith("supabase:");
+}
+
+/** Returns true if the path points to Cloudflare R2 */
+export function isR2Path(dbPath: string): boolean {
+  return dbPath.startsWith("r2:");
+}
+
+/** Returns true if the path points to ANY remote storage (R2 or Supabase),
+ *  i.e. it must be downloaded before local processing. */
+export function isRemotePath(dbPath: string): boolean {
+  return isR2Path(dbPath) || isSupabasePath(dbPath);
 }

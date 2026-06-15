@@ -17,6 +17,96 @@ interface ProjectEditorProps {
   clips?: Clip[];
 }
 
+// Uploads a File DIRECTLY to Cloudflare R2 using presigned multipart part URLs.
+// The bytes go browser → R2; the server only presigns + finalizes, so a 600MB
+// upload never pressures the server's disk (the cause of the "error de red").
+// Mirrors the legacy chunk flow: 10MB parts, 4 retries with backoff per part.
+async function uploadFileToR2(
+  file: File,
+  key: string,
+  uploadId: string,
+  projectId: string,
+  onProgress: (pct: number) => void
+): Promise<unknown> {
+  const PART_SIZE = 10 * 1024 * 1024; // 10 MB (R2 multipart min is 5MB except last)
+  const totalParts = Math.ceil(file.size / PART_SIZE);
+  const parts: { PartNumber: number; ETag: string }[] = [];
+
+  for (let i = 0; i < totalParts; i++) {
+    const partNumber = i + 1;
+    const start = i * PART_SIZE;
+    const end = Math.min(start + PART_SIZE, file.size);
+    const blob = file.slice(start, end);
+
+    const MAX_RETRIES = 4;
+    let attempt = 0;
+    for (;;) {
+      try {
+        // Presign this part (re-presigned each retry in case a URL expired).
+        const presignRes = await fetch("/api/upload-part-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, uploadId, partNumber }),
+        });
+        if (!presignRes.ok) {
+          const err = await presignRes.json().catch(() => ({}));
+          throw new Error(err.error || `Error al preparar parte ${partNumber}`);
+        }
+        const { url } = await presignRes.json();
+
+        const etag = await new Promise<string>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", url);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const partProgress = e.loaded / e.total;
+              const overall = Math.round(((i + partProgress) / totalParts) * 100);
+              onProgress(Math.min(99, overall));
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              const tag = xhr.getResponseHeader("ETag");
+              if (!tag)
+                reject(
+                  new Error(
+                    `R2 no devolvió ETag en la parte ${partNumber} (revisá CORS: ExposeHeaders ETag)`
+                  )
+                );
+              else resolve(tag);
+            } else {
+              reject(new Error(`Error ${xhr.status} al subir parte ${partNumber} a R2`));
+            }
+          };
+          xhr.onerror = () => reject(new Error(`Error de red al subir parte ${partNumber}`));
+          xhr.ontimeout = () => reject(new Error(`Timeout al subir parte ${partNumber}`));
+          xhr.timeout = 600000; // 10 min per part
+          xhr.send(blob); // bytes go straight to R2
+        });
+
+        parts.push({ PartNumber: partNumber, ETag: etag });
+        break; // part done
+      } catch (err) {
+        attempt++;
+        if (attempt > MAX_RETRIES) throw err;
+        await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
+      }
+    }
+  }
+
+  // Finalize: server completes the multipart upload and sets source_video.
+  const completeRes = await fetch("/api/upload-complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId, key, uploadId, parts }),
+  });
+  if (!completeRes.ok) {
+    const err = await completeRes.json().catch(() => ({}));
+    throw new Error(err.error || "Error al finalizar la subida");
+  }
+  return completeRes.json();
+}
+
 export default function ProjectEditor({ project: initialProject, renders: initialRenders, clips: initialClips = [] }: ProjectEditorProps) {
   const router = useRouter();
   const [project, setProject] = useState(initialProject);
@@ -82,7 +172,24 @@ export default function ProjectEditor({ project: initialProject, renders: initia
         const err = await urlRes.json().catch(() => ({}));
         throw new Error(err.error || `Error ${urlRes.status} al obtener URL de upload`);
       }
-      const { filename } = await urlRes.json();
+      const up = await urlRes.json();
+
+      // Preferred: direct-to-R2 multipart upload (bytes never touch the server).
+      if (up.mode === "r2") {
+        const updated = await uploadFileToR2(
+          file,
+          up.key,
+          up.uploadId,
+          project.id,
+          setUploadProgress
+        );
+        setProject(updated as Project);
+        setUploadProgress(100);
+        return;
+      }
+
+      // Legacy fallback: chunked upload to the server volume.
+      const filename = up.filename;
 
       // Chunked upload: split into 10 MB pieces to stay under proxy limits
       const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB
